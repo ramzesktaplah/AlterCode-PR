@@ -1,0 +1,6 @@
+{
+  "name": "AlterCode",
+  "description": "Cross-Language Code Transformer, IDE & Multi-Model Engine",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
