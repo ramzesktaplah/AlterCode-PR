@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -55,17 +56,350 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.os.StatFs
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.SdStorage
+import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import com.example.data.ProjectEntity
 import com.example.data.SnippetEntity
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+data class WorkspaceStorageStatus(
+    val isPermitted: Boolean,
+    val canCreateFolders: Boolean,
+    val canCreateFiles: Boolean,
+    val hasSystemPermission: Boolean,
+    val isLowSpace: Boolean,
+    val availableBytes: Long,
+    val totalBytes: Long,
+    val workspaceBytes: Long
+)
+
+private fun formatStorageBytes(bytes: Long): String {
+    if (bytes <= 0L) return "0 B"
+    val units = arrayOf("B", "KB", "MB", "GB", "TB")
+    val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt().coerceIn(0, units.lastIndex)
+    return String.format(Locale.US, "%.1f %s", bytes / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
+}
+
+private fun evaluateWorkspaceStorage(context: Context): WorkspaceStorageStatus {
+    var canCreateFolders = false
+    var canCreateFiles = false
+    val testDir = File(context.filesDir, ".altercode_storage_test")
+    try {
+        if (!testDir.exists()) {
+            canCreateFolders = testDir.mkdirs()
+        } else {
+            canCreateFolders = true
+        }
+
+        if (canCreateFolders) {
+            val testFile = File(testDir, "test.tmp")
+            testFile.writeText("ok")
+            canCreateFiles = testFile.exists() && testFile.length() > 0
+            testFile.delete()
+            testDir.delete()
+        }
+    } catch (e: Exception) {
+        canCreateFiles = false
+    }
+
+    val hasSystemPermission = if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+        ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+        ) == PackageManager.PERMISSION_GRANTED
+    } else {
+        true
+    }
+
+    val stat = try {
+        StatFs(context.filesDir.absolutePath)
+    } catch (e: Exception) {
+        null
+    }
+
+    val available = stat?.let { it.availableBlocksLong * it.blockSizeLong } ?: 0L
+    val total = stat?.let { it.blockCountLong * it.blockSizeLong } ?: 0L
+    val isLow = available in 1..(100 * 1024 * 1024L)
+
+    val workspaceSize = try {
+        context.filesDir.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+    } catch (e: Exception) {
+        0L
+    }
+
+    val isPermitted = canCreateFolders && canCreateFiles && hasSystemPermission
+
+    return WorkspaceStorageStatus(
+        isPermitted = isPermitted,
+        canCreateFolders = canCreateFolders,
+        canCreateFiles = canCreateFiles,
+        hasSystemPermission = hasSystemPermission,
+        isLowSpace = isLow,
+        availableBytes = available,
+        totalBytes = total,
+        workspaceBytes = workspaceSize
+    )
+}
+
+@Composable
+private fun StorageUsageIndicator(
+    status: WorkspaceStorageStatus,
+    onRequestPermission: () -> Unit,
+    onRefresh: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        // 1. Permission and creation failure Alert Banner
+        if (!status.isPermitted) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp)
+                    .testTag("storage_permission_alert_card"),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Column(modifier = Modifier.padding(14.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ErrorOutline,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = "Storage Permission Required",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "The app cannot create folders or write files in local storage. Grant storage permissions to ensure new projects and snippets can be created.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onRequestPermission,
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.testTag("grant_storage_permission_btn")
+                        ) {
+                            Text("Grant Access")
+                        }
+                        OutlinedButton(
+                            onClick = onRefresh,
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Text("Recheck")
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Low Disk Space Warning
+        if (status.isLowSpace) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp)
+                    .testTag("low_space_alert_card"),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.WarningAmber,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Text(
+                        text = "Critically low disk space: only ${formatStorageBytes(status.availableBytes)} available. Free up device storage to prevent file creation errors.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+
+        // 3. Compact Disk Space Usage Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 10.dp)
+                .testTag("workspace_disk_space_card"),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            ),
+            shape = RoundedCornerShape(14.dp)
+        ) {
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SdStorage,
+                            contentDescription = "Disk Storage",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(17.dp)
+                        )
+                        Text(
+                            text = "Folder Storage",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (status.isPermitted) Color(0xFF10B981).copy(alpha = 0.15f) else MaterialTheme.colorScheme.error.copy(alpha = 0.15f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (status.isPermitted) Icons.Default.CheckCircle else Icons.Default.Lock,
+                                    contentDescription = null,
+                                    tint = if (status.isPermitted) Color(0xFF10B981) else MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Text(
+                                    text = if (status.isPermitted) "Storage Writable" else "Lacks Permission",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (status.isPermitted) Color(0xFF10B981) else MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onRefresh,
+                            modifier = Modifier
+                                .size(24.dp)
+                                .testTag("refresh_storage_status_btn")
+                        ) {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Refresh disk space",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(15.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                val usedBytes = (status.totalBytes - status.availableBytes).coerceAtLeast(0L)
+                val progress = if (status.totalBytes > 0) (usedBytes.toFloat() / status.totalBytes.toFloat()).coerceIn(0f, 1f) else 0f
+
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .testTag("disk_usage_progress_bar"),
+                    color = if (status.isLowSpace) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${formatStorageBytes(status.availableBytes)} free of ${formatStorageBytes(status.totalBytes)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = "Folder Files: ${formatStorageBytes(status.workspaceBytes)}",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun WorkspaceScreen(
     viewModel: AlterCodeViewModel,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    var storageStatus by remember { mutableStateOf(evaluateWorkspaceStorage(context)) }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        storageStatus = evaluateWorkspaceStorage(context)
+        if (isGranted) {
+            Toast.makeText(context, "Storage permission granted", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(context, "Storage permission denied", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     val snippets by viewModel.savedSnippets.collectAsStateWithLifecycle()
     val projects by viewModel.savedProjects.collectAsStateWithLifecycle()
 
@@ -97,6 +431,23 @@ fun WorkspaceScreen(
             .fillMaxSize()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
+        // --- Storage Disk Space & Permission Indicator ---
+        StorageUsageIndicator(
+            status = storageStatus,
+            onRequestPermission = {
+                if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P) {
+                    permissionLauncher.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                } else {
+                    storageStatus = evaluateWorkspaceStorage(context)
+                    Toast.makeText(context, "App workspace storage verified", Toast.LENGTH_SHORT).show()
+                }
+            },
+            onRefresh = {
+                storageStatus = evaluateWorkspaceStorage(context)
+                Toast.makeText(context, "Disk usage refreshed", Toast.LENGTH_SHORT).show()
+            }
+        )
+
         // --- Search bar ---
         OutlinedTextField(
             value = searchQuery,
@@ -214,6 +565,7 @@ fun WorkspaceScreen(
                         SnippetItemCard(
                             snippet = snippet,
                             onLoad = { viewModel.loadSnippetIntoStudio(snippet) },
+                            onEditInVsCode = { viewModel.loadWorkspaceSnippetIntoVsCode(snippet) },
                             onDelete = { viewModel.deleteSnippet(snippet.id) }
                         )
                     }
@@ -377,6 +729,7 @@ private fun WorkspaceEmptyState(
 private fun SnippetItemCard(
     snippet: SnippetEntity,
     onLoad: () -> Unit,
+    onEditInVsCode: () -> Unit,
     onDelete: () -> Unit
 ) {
     Card(
@@ -467,6 +820,48 @@ private fun SnippetItemCard(
                     color = Color(0xFFE2E8F0),
                     maxLines = 3
                 )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Quick actions: Open in Studio or Edit in VS Code
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(
+                    onClick = onEditInVsCode,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier
+                        .height(32.dp)
+                        .testTag("snippet_edit_vscode_${snippet.id}")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Terminal,
+                        contentDescription = null,
+                        tint = Color(0xFF34D399),
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Edit in Workspace", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                }
+
+                OutlinedButton(
+                    onClick = onLoad,
+                    shape = RoundedCornerShape(8.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Code,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("Studio", fontSize = 11.sp)
+                }
             }
         }
     }

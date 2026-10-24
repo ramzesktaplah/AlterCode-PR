@@ -27,7 +27,6 @@ object SyntaxHighlighter {
     )
 
     private val numberPattern = Regex("\\b\\d+(?:_[0-9]+)*(?:\\.[0-9]+)?[Lufd]?\\b")
-    private val annotationPattern = Regex("@[A-Za-z_][A-Za-z0-9_]*|#\\[[A-Za-z_][^\\]]*\\]")
     private val functionCallPattern = Regex("\\b([a-zA-Z_][a-zA-Z0-9_]*)\\s*(?=\\()")
     private val stringPattern = Regex("\"([^\"\\\\]|\\\\.)*\"|'([^'\\\\]|\\\\.)*'")
     private val commentPattern = Regex("//.*$|#.*$|/\\*[\\s\\S]*?\\*/", RegexOption.MULTILINE)
@@ -37,64 +36,55 @@ object SyntaxHighlighter {
 
         return buildAnnotatedString {
             append(code)
-            addStyle(SpanStyle(color = palette.plainText), 0, code.length)
+            addStyle(SpanStyle(color = palette.plain), 0, code.length)
 
-            // 1. Numbers
+            // Numbers
             numberPattern.findAll(code).forEach { match ->
                 addStyle(
-                    SpanStyle(color = palette.numberLiteral),
+                    SpanStyle(color = palette.number),
                     match.range.first,
                     match.range.last + 1
                 )
             }
 
-            // 2. Function calls
+            // Function calls
             functionCallPattern.findAll(code).forEach { match ->
                 val group = match.groups[1] ?: return@forEach
                 addStyle(
-                    SpanStyle(color = palette.functionName),
+                    SpanStyle(color = palette.function),
                     group.range.first,
                     group.range.last + 1
                 )
             }
 
-            // 3. Types
+            // Types
             typePattern.findAll(code).forEach { match ->
                 addStyle(
-                    SpanStyle(color = palette.typeName, fontWeight = FontWeight.Medium),
+                    SpanStyle(color = palette.type, fontWeight = FontWeight.SemiBold),
                     match.range.first,
                     match.range.last + 1
                 )
             }
 
-            // 4. Keywords
+            // Keywords
             keywordPattern.findAll(code).forEach { match ->
                 addStyle(
-                    SpanStyle(color = palette.keyword, fontWeight = FontWeight.SemiBold),
+                    SpanStyle(color = palette.keyword, fontWeight = FontWeight.Bold),
                     match.range.first,
                     match.range.last + 1
                 )
             }
 
-            // 5. Annotations / Attributes
-            annotationPattern.findAll(code).forEach { match ->
-                addStyle(
-                    SpanStyle(color = palette.annotation, fontWeight = FontWeight.Medium),
-                    match.range.first,
-                    match.range.last + 1
-                )
-            }
-
-            // 6. Strings
+            // Strings
             stringPattern.findAll(code).forEach { match ->
                 addStyle(
-                    SpanStyle(color = palette.stringLiteral),
+                    SpanStyle(color = palette.string),
                     match.range.first,
                     match.range.last + 1
                 )
             }
 
-            // 7. Comments override everything inside their span
+            // Comments
             commentPattern.findAll(code).forEach { match ->
                 addStyle(
                     SpanStyle(color = palette.comment, fontStyle = FontStyle.Italic),
@@ -103,43 +93,5 @@ object SyntaxHighlighter {
                 )
             }
         }
-    }
-
-    enum class DiffKind { UNCHANGED, ADDED, REMOVED }
-
-    data class DiffLine(
-        val kind: DiffKind,
-        val oldLineNum: Int?,
-        val newLineNum: Int?,
-        val content: String
-    )
-
-    fun computeLineDiff(before: String, after: String): List<DiffLine> {
-        val oldLines = before.lines()
-        val newLines = after.lines()
-        val result = mutableListOf<DiffLine>()
-
-        var i = 0
-        var j = 0
-        while (i < oldLines.size || j < newLines.size) {
-            val oldLine = oldLines.getOrNull(i)
-            val newLine = newLines.getOrNull(j)
-            when {
-                oldLine != null && newLine != null && oldLine.trim() == newLine.trim() -> {
-                    result.add(DiffLine(DiffKind.UNCHANGED, i + 1, j + 1, newLine))
-                    i++
-                    j++
-                }
-                oldLine != null && (newLine == null || !newLines.drop(j).take(3).any { it.trim() == oldLine.trim() }) -> {
-                    result.add(DiffLine(DiffKind.REMOVED, i + 1, null, oldLine))
-                    i++
-                }
-                newLine != null -> {
-                    result.add(DiffLine(DiffKind.ADDED, null, j + 1, newLine))
-                    j++
-                }
-            }
-        }
-        return result
     }
 }

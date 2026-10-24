@@ -1,0 +1,26 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Ruby Faceted Gemstone -->
+    <!-- Top Table Facet -->
+    <path
+        android:fillColor="#E0115F"
+        android:pathData="M6,3 L18,3 L22,9 L12,22 L2,9 Z" />
+    <path
+        android:fillColor="#FF4B72"
+        android:pathData="M7,4 L17,4 L19.8,8 L12,8 L4.2,8 Z" />
+    <!-- Lower Center Facet -->
+    <path
+        android:fillColor="#B3003B"
+        android:pathData="M4.2,8 L12,8 L12,21 Z" />
+    <!-- Lower Right Facet -->
+    <path
+        android:fillColor="#91002F"
+        android:pathData="M12,8 L19.8,8 L12,21 Z" />
+    <!-- Star Glint -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10,5 L11,7 L13,7 L11.5,8 L12,10 L10,8.5 L8,10 L8.5,8 L7,7 L9,7 Z" />
+</vector>

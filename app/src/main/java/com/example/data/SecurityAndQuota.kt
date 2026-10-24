@@ -13,6 +13,9 @@ class SecurityAndQuota(context: Context) {
         private const val KEY_GITHUB_USERNAME = "pref_github_username"
         private const val KEY_GITHUB_PAT = "pref_github_pat"
         private const val KEY_THEME_MODE = "pref_theme_mode"
+        private const val KEY_CUSTOM_WORKER_URL = "pref_custom_worker_url"
+        private const val KEY_DYNAMIC_COLOR = "pref_dynamic_color"
+        private const val KEY_BONUS_BURST = "pref_bonus_burst"
         private const val BURST_LIMIT = 20
         private const val HOURLY_LIMIT = 100
         private const val DAILY_LIMIT = 500
@@ -59,6 +62,36 @@ class SecurityAndQuota(context: Context) {
             .apply()
     }
 
+    fun getCustomWorkerUrl(): String {
+        return prefs.getString(KEY_CUSTOM_WORKER_URL, "")?.trim().orEmpty()
+    }
+
+    fun setCustomWorkerUrl(url: String) {
+        prefs.edit().putString(KEY_CUSTOM_WORKER_URL, url.trim()).apply()
+    }
+
+    fun getUseDynamicColor(): Boolean {
+        return prefs.getBoolean(KEY_DYNAMIC_COLOR, true)
+    }
+
+    fun setUseDynamicColor(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_DYNAMIC_COLOR, enabled).apply()
+    }
+
+    fun getBonusBurst(): Int {
+        return prefs.getInt(KEY_BONUS_BURST, 0)
+    }
+
+    fun addBonusBurst(amount: Int) {
+        val current = getBonusBurst()
+        prefs.edit().putInt(KEY_BONUS_BURST, (current + amount).coerceAtMost(50)).apply()
+    }
+
+    fun resetBurstWindow() {
+        // Clear bonus or reset window state
+        prefs.edit().putInt(KEY_BONUS_BURST, 10).apply()
+    }
+
     fun getSavedThemeMode(): String {
         return prefs.getString(KEY_THEME_MODE, "LIGHT") ?: "LIGHT"
     }
@@ -78,17 +111,18 @@ class SecurityAndQuota(context: Context) {
         val burstCount = repository.countUsageSince(now - 60_000L) // last 1 min
         val hourlyCount = repository.countUsageSince(now - 3_600_000L) // last 1 hr
         val dailyCount = repository.countUsageSince(now - 86_400_000L) // last 24 hrs
+        val effectiveBurstLimit = BURST_LIMIT + getBonusBurst()
 
-        val isAllowed = burstCount < BURST_LIMIT && hourlyCount < HOURLY_LIMIT && dailyCount < DAILY_LIMIT
+        val isAllowed = burstCount < effectiveBurstLimit && hourlyCount < HOURLY_LIMIT && dailyCount < DAILY_LIMIT
 
         return QuotaStatus(
             burstUsed = burstCount,
-            burstLimit = BURST_LIMIT,
+            burstLimit = effectiveBurstLimit,
             hourlyUsed = hourlyCount,
             hourlyLimit = HOURLY_LIMIT,
             dailyUsed = dailyCount,
             dailyLimit = DAILY_LIMIT,
-            bonusBurstGranted = 5,
+            bonusBurstGranted = getBonusBurst(),
             deviceFingerprint = getDeviceFingerprint(),
             encryptionBadge = "AES-GCM-256 Vault",
             isAllowed = isAllowed

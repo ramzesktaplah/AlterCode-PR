@@ -1,10 +1,11 @@
 package com.example.ui
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,58 +15,49 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.CallSplit
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.BookmarkAdd
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.CloudDownload
-import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.LinkOff
-import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.PersonSearch
-import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.VerifiedUser
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.AssistChip
+import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.UploadFile
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -76,83 +68,545 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.TextStyle
-import com.example.R
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import com.example.ai.GitHubFilePayload
-import com.example.ai.GitHubRepoItem
-import com.example.ai.GitHubRepositorySummary
-import com.example.ai.GitHubUserProfile
-import com.example.ui.components.SyntaxHighlighter
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.R
+import com.example.ai.GitHubFileNode
+import com.example.ai.GitHubRepo
 import com.example.ui.components.RadialGlowButton
-import com.example.ui.theme.CodeFontFamily
-import com.example.ui.theme.LocalSyntaxPalette
-
-private val FallbackQuickRepos = listOf(
-    "torvalds/linux",
-    "JetBrains/kotlin",
-    "cloudflare/workers-sdk",
-    "google/gson"
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GitHubScreen(
-    gitHubState: GitHubBrowserUiState,
-    studioSourceCode: String,
-    onConnectWithToken: (String) -> Unit,
-    onConnectWithUsername: (String) -> Unit,
-    onDisconnectProfile: () -> Unit,
-    onRefreshProfile: () -> Unit,
-    onSelectSubTab: (GitHubSubTab) -> Unit,
-    onUpdateRepoSearchQuery: (String) -> Unit,
-    onSelectRepoFilter: (GitHubRepoFilter) -> Unit,
-    onOpenRepositoryInExplorer: (GitHubRepositorySummary) -> Unit,
-    onSelectBranch: (String) -> Unit,
-    onBrowseRepo: (String, String) -> Unit,
-    onSelectItem: (GitHubRepoItem) -> Unit,
-    onCloseFilePreview: () -> Unit,
-    onImportFileToStudio: (GitHubFilePayload) -> Unit,
-    onSaveFileToVault: (GitHubFilePayload) -> Unit,
-    onPublishStudioGist: (String, String, Boolean) -> Unit,
-    onCommitFileUpdate: (GitHubFilePayload, String, String) -> Unit,
-    onDismissMessages: () -> Unit,
+    viewModel: AlterCodeViewModel,
     modifier: Modifier = Modifier
 ) {
-    var showConnectModal by remember { mutableStateOf(false) }
-    var showGistModal by remember { mutableStateOf(false) }
-    var showCommitModal by remember { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
+    val state by viewModel.gitHubState.collectAsStateWithLifecycle()
+    var patInput by remember { mutableStateOf("") }
+    var isTokenVisible by remember { mutableStateOf(false) }
+    var repoSearchQuery by remember { mutableStateOf("") }
+    var showConnectSheet by remember { mutableStateOf(false) }
+    var selectedAuthTab by remember { mutableIntStateOf(0) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val context = LocalContext.current
 
-    val isConnected = gitHubState.connectedProfile != null || gitHubState.connectedUsername.isNotBlank()
+    val isConnected = state.profile != null || state.connectedUsername.isNotBlank()
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // Status or Error Banner
-        AnimatedVisibility(visible = gitHubState.errorMessage != null || gitHubState.statusMessage != null) {
-            val isError = gitHubState.errorMessage != null
-            val bannerText = gitHubState.errorMessage ?: gitHubState.statusMessage.orEmpty()
+    Box(modifier = modifier.fillMaxSize()) {
+        if (!isConnected) {
+            // Default Landing View: matching Image 1 exactly with centered badge and RadialGlowButton
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Circular GitHub icon badge with soft blue background tint
+                    Surface(
+                        shape = CircleShape,
+                        color = Color(0xFFDCE6FF),
+                        modifier = Modifier
+                            .size(96.dp)
+                            .testTag("github_logo_badge")
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                painter = painterResource(id = R.drawable.ic_github),
+                                contentDescription = "GitHub",
+                                tint = Color(0xFF0F172A),
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(28.dp))
+
+                    Text(
+                        text = "Connect to GitHub",
+                        style = MaterialTheme.typography.headlineMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 28.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "Connect your GitHub account using a Personal Access Token or public username to browse your repositories and inspect code.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 15.sp,
+                            lineHeight = 22.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 14.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(30.dp))
+
+                    // "Connect to GitHub" button keeping the customized RadialGlowButton design
+                    RadialGlowButton(
+                        onClick = { showConnectSheet = true },
+                        shape = RoundedCornerShape(24.dp),
+                        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth(0.9f)
+                            .testTag("btn_connect_github")
+                    ) {
+                        Icon(
+                            painter = painterResource(id = R.drawable.ic_github),
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Connect to GitHub",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = Color.White
+                            )
+                        )
+                    }
+
+                    if (state.isLoading) {
+                        Spacer(modifier = Modifier.height(18.dp))
+                        CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                    }
+                }
+            }
+        } else {
+            // Connected View: Account details header & repositories
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                // --- Error Banner in connected state ---
+                AnimatedVisibility(visible = state.errorMessage != null) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = state.errorMessage.orEmpty(),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { viewModel.clearSelectedRepo() },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Close,
+                                    contentDescription = "Dismiss error",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // When user connects: Display their account profile header card
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("github_account_display_card")
+                ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(50.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = (state.profile?.login ?: state.connectedUsername).take(2).uppercase(),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 18.sp
+                                )
+                            }
+                        }
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = state.profile?.name.takeUnless { it.isNullOrBlank() } ?: state.connectedUsername,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = Icons.Default.CheckCircle,
+                                    contentDescription = "Connected",
+                                    tint = Color(0xFF10B981),
+                                    modifier = Modifier.size(17.dp)
+                                )
+                            }
+
+                            Text(
+                                text = "@${state.profile?.login ?: state.connectedUsername}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.SemiBold
+                            )
+
+                            if (!state.profile?.bio.isNullOrBlank()) {
+                                Text(
+                                    text = state.profile?.bio.orEmpty(),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 2.dp)
+                                )
+                            }
+                        }
+
+                        // Disconnect account button
+                        IconButton(
+                            onClick = { viewModel.disconnectGitHub() },
+                            modifier = Modifier.testTag("btn_disconnect_github")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LinkOff,
+                                contentDescription = "Disconnect Account",
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Account stats pills
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 6.dp, horizontal = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "${state.repos.size}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Repositories",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 6.dp, horizontal = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "${state.profile?.followers ?: 0}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Followers",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(vertical = 6.dp, horizontal = 8.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    text = "${state.profile?.following ?: 0}",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Following",
+                                    fontSize = 10.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+        // --- Loading Spinner ---
+        if (state.isLoading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(modifier = Modifier.size(32.dp))
+            }
+        }
+
+        // --- Repositories / Explorer View ---
+        if (isConnected) {
+            if (state.selectedRepo == null) {
+                // Header for repositories
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "ACCOUNT REPOSITORIES (${state.repos.size})",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                // Repositories List
+                if (state.repos.isNotEmpty()) {
+                    OutlinedTextField(
+                        value = repoSearchQuery,
+                        onValueChange = { repoSearchQuery = it },
+                        placeholder = { Text("Filter your repositories...", fontSize = 13.sp) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("repo_search_input")
+                    )
+
+                    val filtered = remember(state.repos, repoSearchQuery) {
+                        if (repoSearchQuery.isBlank()) state.repos
+                        else state.repos.filter {
+                            it.name.contains(repoSearchQuery, ignoreCase = true) ||
+                                    it.description.contains(repoSearchQuery, ignoreCase = true) ||
+                                    it.language.contains(repoSearchQuery, ignoreCase = true)
+                        }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filtered, key = { it.fullName }) { repo ->
+                            RepoCard(repo = repo, onClick = { viewModel.selectRepo(repo) })
+                        }
+                    }
+                } else if (!state.isLoading) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "No repositories found for this account.\nMake sure your token has 'repo' scope access.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                // Selected Repository Tree Browser
+                val repo = state.selectedRepo!!
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { viewModel.clearSelectedRepo() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back to repositories")
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = repo.fullName,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Branch: ${repo.defaultBranch} • ${state.currentTree.size} files/folders",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+
+                    HorizontalDivider()
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        items(state.currentTree, key = { it.path }) { fileNode ->
+                            FileNodeItem(
+                                node = fileNode,
+                                isSelected = state.selectedFilePath == fileNode.path,
+                                onClick = {
+                                    if (fileNode.type == "blob") {
+                                        viewModel.previewFile(fileNode)
+                                    }
+                                }
+                            )
+                        }
+                    }
+
+                    // File Preview Panel
+                    if (state.selectedFilePath != null && state.filePreview != null) {
+                        Card(
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 280.dp)
+                                .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(14.dp))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = state.selectedFilePath.orEmpty(),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        Button(
+                                            onClick = { viewModel.importPreviewToVsCode() },
+                                            modifier = Modifier.testTag("btn_import_to_vscode")
+                                        ) {
+                                            Icon(Icons.Default.Terminal, contentDescription = null, modifier = Modifier.size(15.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Workspace", style = MaterialTheme.typography.labelSmall)
+                                        }
+
+                                        OutlinedButton(
+                                            onClick = { viewModel.importPreviewToStudio() },
+                                            modifier = Modifier.testTag("btn_import_to_studio")
+                                        ) {
+                                            Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(15.dp))
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text("Studio", style = MaterialTheme.typography.labelSmall)
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = state.filePreview.orEmpty().take(1200),
+                                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace, fontSize = 11.sp),
+                                        modifier = Modifier.padding(8.dp),
+                                        maxLines = 8,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(64.dp))
+    }
+}
+
+    // Floating Error Banner for disconnected state
+    if (!isConnected && state.errorMessage != null) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .align(Alignment.TopCenter)
+        ) {
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = if (isError) {
-                    MaterialTheme.colorScheme.errorContainer
-                } else {
-                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
-                },
+                color = MaterialTheme.colorScheme.errorContainer,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -162,763 +616,301 @@ fun GitHubScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.weight(1f),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text(
-                            text = bannerText,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (isError) {
-                                MaterialTheme.colorScheme.onErrorContainer
-                            } else {
-                                MaterialTheme.colorScheme.onPrimaryContainer
-                            }
-                        )
-                        if (!isError && gitHubState.latestGistResult != null && bannerText.contains("Gist")) {
-                            TextButton(
-                                onClick = {
-                                    runCatching { uriHandler.openUri(gitHubState.latestGistResult.htmlUrl) }
-                                }
-                            ) {
-                                Text("Open Gist", style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
+                    Text(
+                        text = state.errorMessage.orEmpty(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.weight(1f)
+                    )
                     IconButton(
-                        onClick = onDismissMessages,
-                        modifier = Modifier.size(28.dp)
+                        onClick = { viewModel.clearSelectedRepo() },
+                        modifier = Modifier.size(24.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Dismiss notification",
+                            contentDescription = "Dismiss error",
                             modifier = Modifier.size(16.dp)
                         )
                     }
                 }
             }
         }
+    }
 
-        if (!isConnected) {
-            // Disconnected or Not Signed In: Only show the Connect to GitHub button
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
+    // Modal Bottom Sheet matching Image 2
+    if (showConnectSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showConnectSheet = false },
+            sheetState = sheetState,
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            containerColor = MaterialTheme.colorScheme.surface,
+            dragHandle = {
+                Surface(
+                    modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(2.dp)
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.size(76.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                painter = painterResource(id = R.drawable.ic_github),
-                                contentDescription = "GitHub",
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                                modifier = Modifier.size(38.dp)
-                            )
-                        }
-                    }
-
-                    Text(
-                        text = "Connect to GitHub",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Text(
-                        text = "Connect your GitHub account using a Personal Access Token or public username to browse your repositories and inspect code.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-
-                    RadialGlowButton(
-                        onClick = { showConnectModal = true },
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .testTag("github_connect_button"),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(
-                            painter = painterResource(id = R.drawable.ic_github),
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.95f),
-                            modifier = Modifier.size(20.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "Connect to GitHub",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White.copy(alpha = 0.95f)
-                            )
-                        )
-                    }
+                    Box(modifier = Modifier.size(width = 36.dp, height = 4.dp))
                 }
             }
-        } else {
-            // 1. Connected Real GitHub Profile Card
-            GitHubProfileHeaderCard(
-                profile = gitHubState.connectedProfile,
-                connectedUsername = gitHubState.connectedUsername,
-                hasPersonalAccessToken = gitHubState.hasPersonalAccessToken,
-                isProfileLoading = gitHubState.isProfileLoading,
-                onOpenConnectModal = { showConnectModal = true },
-                onRefreshProfile = onRefreshProfile,
-                onOpenGistModal = { showGistModal = true },
-                onDisconnectProfile = onDisconnectProfile,
-                onOpenProfileInBrowser = { url ->
-                    runCatching { uriHandler.openUri(url) }
-                }
-            )
-
-            // 2. Segmented Sub-Tab Navigation: My Repositories vs Code Explorer
-            val repoCount = when (gitHubState.repoFilter) {
-                GitHubRepoFilter.STARRED -> gitHubState.starredRepositories.size
-                else -> gitHubState.userRepositories.size
-            }
-            SecondaryTabRow(
-                selectedTabIndex = gitHubState.activeSubTab.ordinal,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-            ) {
-                Tab(
-                    selected = gitHubState.activeSubTab == GitHubSubTab.REPOSITORIES,
-                    onClick = { onSelectSubTab(GitHubSubTab.REPOSITORIES) },
-                    modifier = Modifier.testTag("github_subtab_repos"),
-                    text = {
-                        Text(
-                            text = "Repositories ($repoCount)",
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = if (gitHubState.activeSubTab == GitHubSubTab.REPOSITORIES) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
-                )
-                Tab(
-                    selected = gitHubState.activeSubTab == GitHubSubTab.EXPLORER,
-                    onClick = { onSelectSubTab(GitHubSubTab.EXPLORER) },
-                    modifier = Modifier.testTag("github_subtab_explorer"),
-                    text = {
-                        Text(
-                            text = "Explorer • ${gitHubState.repoSlug.substringAfterLast('/')}",
-                            style = MaterialTheme.typography.labelLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontWeight = if (gitHubState.activeSubTab == GitHubSubTab.EXPLORER) FontWeight.Bold else FontWeight.Medium
-                        )
-                    }
-                )
-            }
-
-            // 3. Sub-Tab Content
-            when (gitHubState.activeSubTab) {
-                GitHubSubTab.REPOSITORIES -> {
-                    GitHubRepositoriesView(
-                        gitHubState = gitHubState,
-                        onUpdateSearchQuery = onUpdateRepoSearchQuery,
-                        onSelectFilter = onSelectRepoFilter,
-                        onOpenRepository = onOpenRepositoryInExplorer,
-                        onOpenConnectModal = { showConnectModal = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    )
-                }
-
-                GitHubSubTab.EXPLORER -> {
-                    GitHubCodeExplorerView(
-                        gitHubState = gitHubState,
-                        onBrowseRepo = onBrowseRepo,
-                        onSelectBranch = onSelectBranch,
-                        onSelectItem = onSelectItem,
-                        onCloseFilePreview = onCloseFilePreview,
-                        onImportFileToStudio = onImportFileToStudio,
-                        onSaveFileToVault = onSaveFileToVault,
-                        onOpenCommitModal = { showCommitModal = true },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                    )
-                }
-            }
-        }
-    }
-
-    // Connect / Switch GitHub Profile Modal
-    if (showConnectModal) {
-        ConnectGitHubProfileDialog(
-            currentUsername = gitHubState.connectedProfile?.login ?: gitHubState.connectedUsername,
-            hasToken = gitHubState.hasPersonalAccessToken,
-            onConnectWithToken = { token ->
-                onConnectWithToken(token)
-                showConnectModal = false
-            },
-            onConnectWithUsername = { username ->
-                onConnectWithUsername(username)
-                showConnectModal = false
-            },
-            onDisconnect = {
-                onDisconnectProfile()
-                showConnectModal = false
-            },
-            onDismiss = { showConnectModal = false }
-        )
-    }
-
-    // Publish Studio Code to GitHub Gist Modal
-    if (showGistModal) {
-        PublishGitHubGistDialog(
-            hasToken = gitHubState.hasPersonalAccessToken,
-            codePreview = studioSourceCode,
-            onPublish = { fileName, description, isPublic ->
-                onPublishStudioGist(fileName, description, isPublic)
-                showGistModal = false
-            },
-            onOpenConnectModal = {
-                showGistModal = false
-                showConnectModal = true
-            },
-            onDismiss = { showGistModal = false }
-        )
-    }
-
-    // Commit File Changes to GitHub Modal
-    val activeFile = gitHubState.selectedFile
-    if (showCommitModal && activeFile != null) {
-        CommitToGitHubDialog(
-            filePayload = activeFile,
-            studioSourceCode = studioSourceCode,
-            onCommit = { updatedContent, commitMessage ->
-                onCommitFileUpdate(activeFile, updatedContent, commitMessage)
-                showCommitModal = false
-            },
-            onDismiss = { showCommitModal = false }
-        )
-    }
-}
-
-@Composable
-private fun GitHubProfileHeaderCard(
-    profile: GitHubUserProfile?,
-    connectedUsername: String,
-    hasPersonalAccessToken: Boolean,
-    isProfileLoading: Boolean,
-    onOpenConnectModal: () -> Unit,
-    onRefreshProfile: () -> Unit,
-    onOpenGistModal: () -> Unit,
-    onDisconnectProfile: () -> Unit,
-    onOpenProfileInBrowser: (String) -> Unit
-) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-        ),
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                shape = RoundedCornerShape(18.dp)
-            )
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 32.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.weight(1f)
-                ) {
-                    // Avatar with real GitHub avatarUrl via Coil + fallback monogram
-                    Box(
-                        contentAlignment = Alignment.Center,
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.primaryContainer)
-                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape)
-                    ) {
-                        val initials = (profile?.name?.takeIf { it.isNotBlank() } ?: connectedUsername.ifBlank { "GH" })
-                            .take(2)
-                            .uppercase()
-                        Text(
-                            text = initials,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        if (!profile?.avatarUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = profile?.avatarUrl,
-                                contentDescription = "GitHub profile avatar for ${profile?.login}",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .clip(CircleShape)
-                            )
-                        }
-                    }
+                Text(
+                    text = "Connect Real GitHub Profile",
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                // Segmented tabs: PAT Token (Full) vs Username (Public)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 4.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        // Tab 0: PAT Token (Full)
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { selectedAuthTab = 0 }
+                                .padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                text = profile?.name?.ifBlank { profile.login }
-                                    ?: connectedUsername.ifBlank { "Not Connected" },
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                text = "PAT Token (Full)",
+                                fontWeight = if (selectedAuthTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 14.sp,
+                                color = if (selectedAuthTab == 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            if (hasPersonalAccessToken) {
-                                Icon(
-                                    imageVector = Icons.Default.VerifiedUser,
-                                    contentDescription = "Authenticated with Personal Access Token",
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            }
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .height(3.dp)
+                                    .background(
+                                        if (selectedAuthTab == 0) Color(0xFF3B82F6) else Color.Transparent,
+                                        RoundedCornerShape(1.5.dp)
+                                    )
+                            )
                         }
 
-                        val handleText = when {
-                            profile != null -> "@${profile.login}"
-                            connectedUsername.isNotBlank() -> "@$connectedUsername"
-                            else -> "Connect your GitHub username or PAT"
-                        }
-                        Text(
-                            text = handleText,
-                            style = TextStyle(
-                                fontFamily = CodeFontFamily,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        )
-                    }
-                }
-
-                // Right actions: Refresh, Open in Browser, and Disconnect
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isProfileLoading) {
-                        CircularProgressIndicator(
+                        // Tab 1: Username (Public)
+                        Column(
                             modifier = Modifier
-                                .padding(8.dp)
-                                .size(20.dp),
-                            strokeWidth = 2.dp
-                        )
-                    } else {
-                        IconButton(
-                            onClick = onRefreshProfile,
-                            modifier = Modifier.testTag("github_refresh_profile_button")
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { selectedAuthTab = 1 }
+                                .padding(vertical = 10.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = "Refresh GitHub profile"
+                            Text(
+                                text = "Username (Public)",
+                                fontWeight = if (selectedAuthTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 14.sp,
+                                color = if (selectedAuthTab == 1) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(0.9f)
+                                    .height(3.dp)
+                                    .background(
+                                        if (selectedAuthTab == 1) Color(0xFF3B82F6) else Color.Transparent,
+                                        RoundedCornerShape(1.5.dp)
+                                    )
                             )
                         }
-                    }
-                    if (profile != null) {
-                        IconButton(
-                            onClick = { onOpenProfileInBrowser(profile.htmlUrl) },
-                            modifier = Modifier.testTag("github_open_browser_button")
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                                contentDescription = "Open GitHub profile in browser"
-                            )
-                        }
-                    }
-                    IconButton(
-                        onClick = onDisconnectProfile,
-                        modifier = Modifier.testTag("github_disconnect_profile_button")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.LinkOff,
-                            contentDescription = "Disconnect GitHub profile",
-                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.85f)
-                        )
                     }
                 }
-            }
 
-            // Bio & Location Row
-            if (profile != null && (profile.bio.isNotBlank() || profile.location.isNotBlank() || profile.company.isNotBlank())) {
-                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                    if (profile.bio.isNotBlank()) {
-                        Text(
-                            text = profile.bio,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    if (profile.location.isNotBlank() || profile.company.isNotBlank()) {
+                if (selectedAuthTab == 0) {
+                    Text(
+                        text = "Authenticate with a GitHub Personal Access Token (PAT) to access your real profile, private repositories, Gists, and direct commits.",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            fontSize = 14.sp,
+                            lineHeight = 20.sp
+                        ),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    // Outlined input field for GitHub PAT with Show / Hide
+                    OutlinedTextField(
+                        value = patInput,
+                        onValueChange = { patInput = it },
+                        placeholder = {
+                            Text(
+                                text = "GitHub PAT (ghp_... or\ngithub_pat_...)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.65f)
+                            )
+                        },
+                        visualTransformation = if (isTokenVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        singleLine = true,
+                        trailingIcon = {
+                            Text(
+                                text = if (isTokenVisible) "Hide" else "Show",
+                                color = Color(0xFF3B82F6),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .clickable { isTokenVisible = !isTokenVisible }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp)
+                            )
+                        },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
+                            focusedBorderColor = Color(0xFF3B82F6)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("github_pat_input")
+                    )
+
+                    // Outlined button to generate token on GitHub
+                    Surface(
+                        onClick = {
+                            try {
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://github.com/settings/tokens")
+                                )
+                                context.startActivity(intent)
+                            } catch (_: Exception) {}
+                        },
+                        shape = RoundedCornerShape(26.dp),
+                        color = Color.Transparent,
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp,
+                            MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
                         Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            if (profile.location.isNotBlank()) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(
-                                        imageVector = Icons.Default.LocationOn,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(13.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                    Spacer(modifier = Modifier.width(3.dp))
-                                    Text(
-                                        text = profile.location,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                            if (profile.company.isNotBlank()) {
-                                Text(
-                                    text = profile.company,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+                                contentDescription = "Open token generator",
+                                tint = Color(0xFF3B82F6),
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = "Generate Token on GitHub (repo, read:user,\ngist)",
+                                color = Color(0xFF3B82F6),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                lineHeight = 17.sp
+                            )
+                        }
+                    }
+                } else {
+                    // Username tab notice (respecting prompt requirement: only allow connecting by PAT)
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "Personal Access Token Required",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "AlterCode requires a Personal Access Token to access private repositories, inspect code trees, and save files to your workspace. Please switch to the PAT Token tab to authenticate.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                lineHeight = 18.sp
+                            )
                         }
                     }
                 }
-            }
 
-            // Profile Metrics Row
-            if (profile != null) {
+                // Bottom action row matching Image 2
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    ProfileStatBadge(label = "Public", value = profile.publicRepos.toString())
-                    if (hasPersonalAccessToken || profile.privateRepos > 0) {
-                        ProfileStatBadge(label = "Private", value = profile.privateRepos.toString())
-                    }
-                    ProfileStatBadge(label = "Followers", value = profile.followers.toString())
-                    ProfileStatBadge(label = "Following", value = profile.following.toString())
-                }
-            } else {
-                Text(
-                    text = "Connect your real GitHub account",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            // Profile Action Buttons Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                OutlinedButton(
-                    onClick = onOpenGistModal,
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(38.dp)
-                        .testTag("github_create_gist_button")
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Code,
-                        contentDescription = null,
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("New Gist", style = MaterialTheme.typography.labelMedium)
-                }
-
-                RadialGlowButton(
-                    onClick = onOpenConnectModal,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    minWidth = 130.dp,
-                    minHeight = 38.dp,
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier
-                        .weight(1.3f)
-                        .testTag("github_connect_button")
-                ) {
-                    Icon(
-                        imageVector = if (hasPersonalAccessToken) Icons.Default.CheckCircle else Icons.Default.AccountCircle,
-                        contentDescription = null,
-                        tint = Color.White.copy(alpha = 0.95f),
-                        modifier = Modifier.size(15.dp)
-                    )
-                    Spacer(modifier = Modifier.width(5.dp))
-                    Text(
-                        text = if (profile != null) "Account / PAT" else "Connect GitHub",
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color.White.copy(alpha = 0.95f)
-                        ),
-                        maxLines = 1
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ProfileStatBadge(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-@Composable
-private fun GitHubRepositoriesView(
-    gitHubState: GitHubBrowserUiState,
-    onUpdateSearchQuery: (String) -> Unit,
-    onSelectFilter: (GitHubRepoFilter) -> Unit,
-    onOpenRepository: (GitHubRepositorySummary) -> Unit,
-    onOpenConnectModal: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val baseList = when (gitHubState.repoFilter) {
-        GitHubRepoFilter.ALL -> gitHubState.userRepositories
-        GitHubRepoFilter.PUBLIC -> gitHubState.userRepositories.filter { !it.isPrivate }
-        GitHubRepoFilter.PRIVATE -> gitHubState.userRepositories.filter { it.isPrivate }
-        GitHubRepoFilter.STARRED -> gitHubState.starredRepositories
-    }
-
-    val filteredRepos = remember(baseList, gitHubState.repoSearchQuery) {
-        val q = gitHubState.repoSearchQuery.trim().lowercase()
-        if (q.isEmpty()) {
-            baseList
-        } else {
-            baseList.filter { repo ->
-                repo.name.lowercase().contains(q) ||
-                    repo.fullName.lowercase().contains(q) ||
-                    repo.description.lowercase().contains(q) ||
-                    repo.language.lowercase().contains(q)
-            }
-        }
-    }
-
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        // Search & Filter Bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            OutlinedTextField(
-                value = gitHubState.repoSearchQuery,
-                onValueChange = onUpdateSearchQuery,
-                placeholder = { Text("Filter repositories by name or language...") },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                },
-                trailingIcon = {
-                    if (gitHubState.repoSearchQuery.isNotEmpty()) {
-                        IconButton(onClick = { onUpdateSearchQuery("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear search", modifier = Modifier.size(16.dp))
-                        }
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("github_repo_search_input")
-            )
-        }
-
-        // Filter Chips (All, Public, Private, Starred)
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(GitHubRepoFilter.entries) { filter ->
-                val count = when (filter) {
-                    GitHubRepoFilter.ALL -> gitHubState.userRepositories.size
-                    GitHubRepoFilter.PUBLIC -> gitHubState.userRepositories.count { !it.isPrivate }
-                    GitHubRepoFilter.PRIVATE -> gitHubState.userRepositories.count { it.isPrivate }
-                    GitHubRepoFilter.STARRED -> gitHubState.starredRepositories.size
-                }
-                FilterChip(
-                    selected = gitHubState.repoFilter == filter,
-                    onClick = { onSelectFilter(filter) },
-                    label = { Text("${filter.label} ($count)") },
-                    leadingIcon = if (filter == GitHubRepoFilter.PRIVATE) {
-                        { Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                    } else if (filter == GitHubRepoFilter.STARRED) {
-                        { Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(14.dp)) }
-                    } else null
-                )
-            }
-        }
-
-        if (gitHubState.isProfileLoading && filteredRepos.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    CircularProgressIndicator()
-                    Text(
-                        text = "Syncing repositories from GitHub...",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        } else if (filteredRepos.isEmpty()) {
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = if (gitHubState.repoFilter == GitHubRepoFilter.PRIVATE && !gitHubState.hasPersonalAccessToken) {
-                            Icons.Default.Key
-                        } else {
-                            Icons.Default.Folder
-                        },
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(42.dp)
-                    )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Text(
-                        text = if (gitHubState.repoFilter == GitHubRepoFilter.PRIVATE && !gitHubState.hasPersonalAccessToken) {
-                            "Private Repositories Require a Personal Access Token"
-                        } else {
-                            "No matching repositories found"
-                        },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = if (gitHubState.repoFilter == GitHubRepoFilter.PRIVATE && !gitHubState.hasPersonalAccessToken) {
-                            "Connect a GitHub Personal Access Token (PAT) with 'repo' scope to browse your private repositories and branches."
-                        } else {
-                            "Connect your GitHub username or PAT token to load your repositories, or switch to the Code Explorer tab."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    RadialGlowButton(
-                        onClick = onOpenConnectModal,
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
-                        modifier = Modifier.testTag("github_repositories_connect_button")
+                    TextButton(
+                        onClick = { showConnectSheet = false },
+                        modifier = Modifier.testTag("btn_cancel_sheet")
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Key,
-                            contentDescription = null,
-                            tint = Color.White.copy(alpha = 0.95f),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Connect GitHub PAT / Username",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = Color.White.copy(alpha = 0.95f)
+                            text = "Cancel",
+                            color = Color(0xFF3B82F6),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    RadialGlowButton(
+                        onClick = {
+                            if (selectedAuthTab == 0) {
+                                val token = patInput.trim()
+                                if (token.isNotEmpty()) {
+                                    viewModel.connectWithGitHubToken(token)
+                                    showConnectSheet = false
+                                }
+                            } else {
+                                selectedAuthTab = 0
+                            }
+                        },
+                        shape = RoundedCornerShape(22.dp),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                        modifier = Modifier.testTag("btn_authenticate_pat")
+                    ) {
+                        Text(
+                            text = if (selectedAuthTab == 0) "Authenticate PAT" else "Use PAT Token",
+                            style = MaterialTheme.typography.labelLarge.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
                             )
                         )
                     }
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(filteredRepos, key = { it.id }) { repo ->
-                    GitHubRepositoryCard(
-                        repo = repo,
-                        onClick = { onOpenRepository(repo) }
-                    )
-                }
-            }
         }
     }
 }
+}
 
 @Composable
-private fun GitHubRepositoryCard(
-    repo: GitHubRepositorySummary,
-    onClick: () -> Unit
-) {
-    Surface(
-        shape = RoundedCornerShape(14.dp),
-        color = MaterialTheme.colorScheme.surface,
+private fun RepoCard(repo: GitHubRepo, onClick: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         modifier = Modifier
             .fillMaxWidth()
-            .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.28f),
-                shape = RoundedCornerShape(14.dp)
-            )
             .clickable(onClick = onClick)
-            .testTag("github_repo_card_${repo.name}")
+            .border(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -926,50 +918,57 @@ private fun GitHubRepositoryCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = if (repo.isPrivate) Icons.Default.Lock else Icons.Default.Folder,
-                        contentDescription = null,
-                        tint = if (repo.isPrivate) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(18.dp)
-                    )
                     Text(
-                        text = repo.fullName,
-                        style = TextStyle(
-                            fontFamily = CodeFontFamily,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        ),
+                        text = repo.name,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (repo.isPrivate) {
+                        Surface(
+                            shape = RoundedCornerShape(4.dp),
+                            color = MaterialTheme.colorScheme.secondaryContainer
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Lock,
+                                    contentDescription = "Private repository",
+                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                                Spacer(modifier = Modifier.width(2.dp))
+                                Text(
+                                    text = "Private",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                    }
                 }
 
-                Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = if (repo.isPrivate) {
-                        MaterialTheme.colorScheme.tertiaryContainer
-                    } else {
-                        MaterialTheme.colorScheme.secondaryContainer
-                    }
-                ) {
-                    Text(
-                        text = if (repo.isPrivate) "Private" else "Public",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (repo.isPrivate) {
-                            MaterialTheme.colorScheme.onTertiaryContainer
-                        } else {
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        },
-                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Stars",
+                        tint = Color(0xFFF59E0B),
+                        modifier = Modifier.size(14.dp)
                     )
+                    Spacer(modifier = Modifier.width(3.dp))
+                    Text(text = "${repo.stars}", style = MaterialTheme.typography.labelSmall)
                 }
             }
 
-            if (repo.description.isNotBlank()) {
+            if (repo.description.isNotBlank() && repo.description != "No description provided") {
                 Text(
                     text = repo.description,
                     style = MaterialTheme.typography.bodySmall,
@@ -980,737 +979,66 @@ private fun GitHubRepositoryCard(
             }
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Language Dot + Label
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(9.dp)
-                                .clip(CircleShape)
-                                .background(languageColor(repo.language))
-                        )
-                        Spacer(modifier = Modifier.width(5.dp))
-                        Text(
-                            text = repo.language,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium
-                        )
-                    }
-
-                    // Stars
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Star,
-                            contentDescription = null,
-                            tint = Color(0xFFEAB308),
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(3.dp))
-                        Text(
-                            text = repo.stargazersCount.toString(),
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-
-                    // Default branch
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.CallSplit,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(13.dp)
-                        )
-                        Spacer(modifier = Modifier.width(2.dp))
-                        Text(
-                            text = repo.defaultBranch,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                if (repo.updatedAt.isNotBlank()) {
-                    Text(
-                        text = "Updated ${repo.updatedAt}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(8.dp)
+                ) {}
+                Text(
+                    text = repo.language.ifBlank { "Code" },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "• Branch: ${repo.defaultBranch}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }
 }
 
 @Composable
-private fun GitHubCodeExplorerView(
-    gitHubState: GitHubBrowserUiState,
-    onBrowseRepo: (String, String) -> Unit,
-    onSelectBranch: (String) -> Unit,
-    onSelectItem: (GitHubRepoItem) -> Unit,
-    onCloseFilePreview: () -> Unit,
-    onImportFileToStudio: (GitHubFilePayload) -> Unit,
-    onSaveFileToVault: (GitHubFilePayload) -> Unit,
-    onOpenCommitModal: () -> Unit,
-    modifier: Modifier = Modifier
+private fun FileNodeItem(
+    node: GitHubFileNode,
+    isSelected: Boolean,
+    onClick: () -> Unit
 ) {
-    var repoInput by remember(gitHubState.repoSlug) { mutableStateOf(gitHubState.repoSlug) }
-    val syntaxPalette = LocalSyntaxPalette.current
-
-    // Combine user's own top repos with quick fallback repos for 1-tap switching
-    val quickSuggestions = remember(gitHubState.userRepositories) {
-        val userTop = gitHubState.userRepositories.take(5).map { it.fullName }
-        (userTop + FallbackQuickRepos).distinct()
-    }
-
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+        border = androidx.compose.foundation.BorderStroke(
+            0.5.dp,
+            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
     ) {
-        // Repo Slug Lookup + Quick Chips + Branch Chips
-        Card(
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-            ),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Column(
-                modifier = Modifier.padding(12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = repoInput,
-                        onValueChange = { repoInput = it },
-                        label = { Text("owner/repository") },
-                        singleLine = true,
-                        modifier = Modifier
-                            .weight(1f)
-                            .testTag("github_repo_input")
-                    )
-                    Button(
-                        onClick = { onBrowseRepo(repoInput, "") },
-                        modifier = Modifier
-                            .height(52.dp)
-                            .testTag("github_load_repo_button")
-                    ) {
-                        Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Open")
-                    }
-                }
-
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    items(quickSuggestions) { slug ->
-                        AssistChip(
-                            onClick = {
-                                repoInput = slug
-                                onBrowseRepo(slug, "")
-                            },
-                            label = { Text(slug, style = MaterialTheme.typography.labelSmall) }
-                        )
-                    }
-                }
-
-                // Branch selector row when branches are available
-                if (gitHubState.availableBranches.isNotEmpty()) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.CallSplit,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(15.dp)
-                        )
-                        Text(
-                            text = "Branch:",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(gitHubState.availableBranches) { branch ->
-                                FilterChip(
-                                    selected = gitHubState.currentBranch == branch,
-                                    onClick = { onSelectBranch(branch) },
-                                    label = { Text(branch, style = MaterialTheme.typography.labelSmall) }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // Breadcrumb Navigation Bar
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
-            ) {
-                if (gitHubState.currentPath.isNotEmpty() || gitHubState.selectedFile != null) {
-                    IconButton(
-                        onClick = {
-                            if (gitHubState.selectedFile != null) {
-                                onCloseFilePreview()
-                            } else {
-                                val parent = gitHubState.currentPath.substringBeforeLast('/', "")
-                                onBrowseRepo(gitHubState.repoSlug, parent)
-                            }
-                        }
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Navigate Up"
-                        )
-                    }
-                }
-                Text(
-                    text = "${gitHubState.repoSlug}@${gitHubState.currentBranch}/${gitHubState.currentPath}".trimEnd('/'),
-                    style = TextStyle(
-                        fontFamily = CodeFontFamily,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary
-                    ),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            if (gitHubState.isLoading) {
-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-            }
-        }
-
-        // File Preview or Directory Tree
-        val activeFile = gitHubState.selectedFile
-        if (activeFile != null) {
-            val highlighted = remember(activeFile.content, syntaxPalette) {
-                SyntaxHighlighter.highlight(activeFile.content, syntaxPalette)
-            }
-            Card(
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = syntaxPalette.editorBackground),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f)
-                    .border(
-                        1.dp,
-                        MaterialTheme.colorScheme.outline.copy(alpha = 0.45f),
-                        RoundedCornerShape(16.dp)
-                    )
-            ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(syntaxPalette.gutterBackground)
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f, fill = false)) {
-                            Text(
-                                text = activeFile.name,
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = syntaxPalette.plainText,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                text = "${activeFile.detectedLanguage.displayName} • ${activeFile.content.lines().size} L • ${activeFile.branch}",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = syntaxPalette.gutterText,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            IconButton(
-                                onClick = { onSaveFileToVault(activeFile) },
-                                modifier = Modifier
-                                    .size(36.dp)
-                                    .testTag("save_github_file_vault_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.BookmarkAdd,
-                                    contentDescription = "Save to Local Workspace",
-                                    tint = syntaxPalette.plainText,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
-
-                            if (gitHubState.hasPersonalAccessToken) {
-                                IconButton(
-                                    onClick = onOpenCommitModal,
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .testTag("commit_github_file_button")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.CloudUpload,
-                                        contentDescription = "Commit update to GitHub",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
-                            }
-
-                            Button(
-                                onClick = { onImportFileToStudio(activeFile) },
-                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                                modifier = Modifier
-                                    .height(34.dp)
-                                    .testTag("import_github_file_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.CloudDownload,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Studio", style = MaterialTheme.typography.labelSmall)
-                            }
-                        }
-                    }
-
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.25f))
-
-                    LazyColumn(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .horizontalScroll(rememberScrollState()),
-                        contentPadding = PaddingValues(14.dp)
-                    ) {
-                        item {
-                            SelectionContainer {
-                                Text(
-                                    text = highlighted,
-                                    style = TextStyle(
-                                        fontFamily = CodeFontFamily,
-                                        fontSize = 12.sp,
-                                        lineHeight = 19.sp
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(gitHubState.items, key = { it.path }) { item ->
-                    val isDir = item.type == "dir"
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = MaterialTheme.colorScheme.surface,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .border(
-                                1.dp,
-                                MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                                RoundedCornerShape(12.dp)
-                            )
-                            .clickable { onSelectItem(item) }
-                            .testTag("github_item_${item.name}")
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 14.dp, vertical = 12.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = if (isDir) Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
-                                    contentDescription = null,
-                                    tint = if (isDir) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(22.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column {
-                                    Text(
-                                        text = item.name,
-                                        style = TextStyle(
-                                            fontFamily = CodeFontFamily,
-                                            fontSize = 14.sp,
-                                            fontWeight = if (isDir) FontWeight.Bold else FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    )
-                                    Text(
-                                        text = if (isDir) "Directory" else "${item.size} bytes • ${item.path}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ConnectGitHubProfileDialog(
-    currentUsername: String,
-    hasToken: Boolean,
-    onConnectWithToken: (String) -> Unit,
-    onConnectWithUsername: (String) -> Unit,
-    onDisconnect: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    // Mode 0 = Personal Access Token (PAT) for full private + public access; Mode 1 = Public Username
-    var selectedMode by remember { mutableIntStateOf(if (hasToken) 0 else 1) }
-    var usernameInput by remember { mutableStateOf(currentUsername) }
-    var tokenInput by remember { mutableStateOf("") }
-    var showRawToken by remember { mutableStateOf(false) }
-    val uriHandler = LocalUriHandler.current
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = "Connect Real GitHub Profile",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+            Icon(
+                imageVector = if (node.type == "tree") Icons.Default.Folder else Icons.AutoMirrored.Filled.InsertDriveFile,
+                contentDescription = null,
+                tint = if (node.type == "tree") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
             )
-        },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                SecondaryTabRow(
-                    selectedTabIndex = selectedMode,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
-                ) {
-                    Tab(
-                        selected = selectedMode == 0,
-                        onClick = { selectedMode = 0 },
-                        text = { Text("PAT Token (Full)", style = MaterialTheme.typography.labelMedium) }
-                    )
-                    Tab(
-                        selected = selectedMode == 1,
-                        onClick = { selectedMode = 1 },
-                        text = { Text("Username (Public)", style = MaterialTheme.typography.labelMedium) }
-                    )
-                }
-
-                if (selectedMode == 0) {
-                    Text(
-                        text = "Authenticate with a GitHub Personal Access Token (PAT) to access your real profile, private repositories, Gists, and direct commits.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    OutlinedTextField(
-                        value = tokenInput,
-                        onValueChange = { tokenInput = it },
-                        label = { Text("GitHub PAT (ghp_... or github_pat_...)") },
-                        placeholder = { Text("ghp_xxxxxxxxxxxxxxxxxxxx") },
-                        singleLine = true,
-                        visualTransformation = if (showRawToken) {
-                            VisualTransformation.None
-                        } else {
-                            PasswordVisualTransformation()
-                        },
-                        trailingIcon = {
-                            TextButton(onClick = { showRawToken = !showRawToken }) {
-                                Text(if (showRawToken) "Hide" else "Show", style = MaterialTheme.typography.labelSmall)
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("github_pat_input")
-                    )
-
-                    OutlinedButton(
-                        onClick = {
-                            runCatching {
-                                uriHandler.openUri(
-                                    "https://github.com/settings/tokens/new?description=AlterCode+Android&scopes=repo,read:user,gist"
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Generate Token on GitHub (repo, read:user, gist)")
-                    }
-                } else {
-                    Text(
-                        text = "Connect any GitHub username to load their real live profile, bio, avatar, followers, and public repositories without needing a token.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    OutlinedTextField(
-                        value = usernameInput,
-                        onValueChange = { usernameInput = it },
-                        label = { Text("GitHub Username") },
-                        placeholder = { Text("e.g. torvalds") },
-                        leadingIcon = {
-                            Icon(Icons.Default.PersonSearch, contentDescription = null)
-                        },
-                        singleLine = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("github_username_input")
-                    )
-
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(listOf("torvalds", "JetBrains", "google", "JakeWharton")) { sampleUser ->
-                            AssistChip(
-                                onClick = { usernameInput = sampleUser },
-                                label = { Text("@$sampleUser", style = MaterialTheme.typography.labelSmall) }
-                            )
-                        }
-                    }
-                }
-
-                if (currentUsername.isNotBlank() || hasToken) {
-                    HorizontalDivider()
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = if (hasToken) "PAT stored in local vault" else "Connected: @$currentUsername",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        TextButton(onClick = {
-                            onDisconnect()
-                            onDismiss()
-                        }) {
-                            Icon(
-                                imageVector = Icons.Default.LinkOff,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(15.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("Disconnect", color = MaterialTheme.colorScheme.error)
-                        }
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            RadialGlowButton(
-                onClick = {
-                    if (selectedMode == 0) {
-                        onConnectWithToken(tokenInput)
-                    } else {
-                        onConnectWithUsername(usernameInput)
-                    }
-                },
-                minHeight = 42.dp,
-                minWidth = 140.dp,
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                modifier = Modifier.testTag("github_confirm_connect_button")
-            ) {
-                Text(
-                    text = if (selectedMode == 0) "Authenticate PAT" else "Connect Profile",
-                    style = MaterialTheme.typography.labelLarge.copy(
-                        fontWeight = FontWeight.SemiBold,
-                        color = Color.White.copy(alpha = 0.95f)
-                    )
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
+            Text(
+                text = node.path,
+                style = MaterialTheme.typography.bodySmall,
+                fontFamily = FontFamily.Monospace,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
         }
-    )
-}
-
-@Composable
-private fun PublishGitHubGistDialog(
-    hasToken: Boolean,
-    codePreview: String,
-    onPublish: (String, String, Boolean) -> Unit,
-    onOpenConnectModal: () -> Unit,
-    onDismiss: () -> Unit
-) {
-    var fileName by remember { mutableStateOf("AlterCodeSnippet.kt") }
-    var description by remember { mutableStateOf("Published from AlterCode Android AI Studio") }
-    var isPublic by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Publish Studio Code to GitHub Gist", fontWeight = FontWeight.Bold) },
-        text = {
-            if (!hasToken) {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        text = "Publishing a Gist to your GitHub account requires connecting a Personal Access Token (PAT) with the 'gist' scope.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Button(onClick = onOpenConnectModal, modifier = Modifier.fillMaxWidth()) {
-                        Icon(Icons.Default.Key, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Connect GitHub PAT Token")
-                    }
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = fileName,
-                        onValueChange = { fileName = it },
-                        label = { Text("Gist Filename") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = description,
-                        onValueChange = { description = it },
-                        label = { Text("Description") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Public Gist", style = MaterialTheme.typography.bodyMedium)
-                        Switch(checked = isPublic, onCheckedChange = { isPublic = it })
-                    }
-                    Text(
-                        text = "Payload: ${codePreview.length} characters from active Studio buffer",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            if (hasToken) {
-                Button(onClick = { onPublish(fileName, description, isPublic) }) {
-                    Text("Publish Gist")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-@Composable
-private fun CommitToGitHubDialog(
-    filePayload: GitHubFilePayload,
-    studioSourceCode: String,
-    onCommit: (String, String) -> Unit,
-    onDismiss: () -> Unit
-) {
-    var commitMessage by remember { mutableStateOf("Update ${filePayload.name} via AlterCode Android") }
-    var useStudioCode by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Commit to ${filePayload.repoSlug}", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "Target: ${filePayload.path} (branch: ${filePayload.branch})",
-                    style = TextStyle(fontFamily = CodeFontFamily, fontSize = 12.sp),
-                    color = MaterialTheme.colorScheme.primary
-                )
-                OutlinedTextField(
-                    value = commitMessage,
-                    onValueChange = { commitMessage = it },
-                    label = { Text("Commit Message") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Commit current Studio code buffer",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Switch(checked = useStudioCode, onCheckedChange = { useStudioCode = it })
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    val contentToPush = if (useStudioCode) studioSourceCode else filePayload.content
-                    onCommit(contentToPush, commitMessage)
-                }
-            ) {
-                Text("Commit & Push")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancel")
-            }
-        }
-    )
-}
-
-private fun languageColor(language: String): Color {
-    return when (language.lowercase()) {
-        "kotlin" -> Color(0xFFA97BFF)
-        "typescript" -> Color(0xFF3178C6)
-        "javascript" -> Color(0xFFF1E05A)
-        "python" -> Color(0xFF3572A5)
-        "rust" -> Color(0xFFDEA584)
-        "go" -> Color(0xFF00ADD8)
-        "java" -> Color(0xFFB07219)
-        "c++" -> Color(0xFFF34B7D)
-        "swift" -> Color(0xFFF05138)
-        "c#" -> Color(0xFF178600)
-        "php" -> Color(0xFF4F5D95)
-        else -> Color(0xFF6366F1)
     }
 }

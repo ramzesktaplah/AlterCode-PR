@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "AlterCode"
+rootProject.name = "AlterCode_PR"
 
 include(":app")

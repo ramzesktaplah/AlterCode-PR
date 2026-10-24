@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.outlined.BrightnessAuto
+import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -94,14 +95,9 @@ fun AlterCodeApp(viewModel: AlterCodeViewModel) {
     val currentDestination by viewModel.currentDestination.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val useDynamicColor by viewModel.useDynamicColor.collectAsStateWithLifecycle()
-    val studioState by viewModel.studioState.collectAsStateWithLifecycle()
-    val gitHubState by viewModel.gitHubState.collectAsStateWithLifecycle()
     val quotaStatus by viewModel.quotaStatus.collectAsStateWithLifecycle()
     val showQuotaSheet by viewModel.showQuotaSheet.collectAsStateWithLifecycle()
     val customWorkerUrl by viewModel.customWorkerUrl.collectAsStateWithLifecycle()
-    val snippets by viewModel.snippets.collectAsStateWithLifecycle()
-    val projects by viewModel.projects.collectAsStateWithLifecycle()
-    val projectFiles by viewModel.projectFiles.collectAsStateWithLifecycle()
 
     if (currentDestination != AlterCodeDestination.STUDIO) {
         BackHandler {
@@ -112,28 +108,15 @@ fun AlterCodeApp(viewModel: AlterCodeViewModel) {
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
-            TopAppBar(
+            CenterAlignedTopAppBar(
                 title = {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Image(
-                            painter = painterResource(id = R.drawable.download),
-                            contentDescription = "AlterCode Logo",
-                            modifier = Modifier
-                                .size(34.dp)
-                                .testTag("header_altercode_logo")
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "AlterCode",
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.ExtraBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
+                    Image(
+                        painter = painterResource(id = R.drawable.app_logo),
+                        contentDescription = "App Logo",
+                        modifier = Modifier
+                            .size(38.dp)
+                            .testTag("header_altercode_logo")
+                    )
                 },
                 actions = {
                     Surface(
@@ -155,9 +138,11 @@ fun AlterCodeApp(viewModel: AlterCodeViewModel) {
                                 modifier = Modifier.size(13.dp),
                                 tint = MaterialTheme.colorScheme.onSecondaryContainer
                             )
-                            val burstRemaining = (quotaStatus.burstLimit - quotaStatus.burstUsed).coerceAtLeast(0)
+                            val burstLimit = quotaStatus?.burstLimit ?: 20
+                            val burstUsed = quotaStatus?.burstUsed ?: 0
+                            val burstRemaining = (burstLimit - burstUsed).coerceAtLeast(0)
                             Text(
-                                text = "$burstRemaining/${quotaStatus.burstLimit}/m",
+                                text = "$burstRemaining/$burstLimit/m",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
@@ -252,7 +237,7 @@ fun AlterCodeApp(viewModel: AlterCodeViewModel) {
                             .testTag("bottom_navigation_bar")
                     ) {
                         val iconSize = 25.dp
-                        AlterCodeDestination.entries.forEach { destination ->
+                        for (destination in AlterCodeDestination.entries) {
                             val isSelected = currentDestination == destination
                             val iconAlpha = if (isSelected) 1f else 0.42f
                             NavigationBarItem(
@@ -327,79 +312,38 @@ fun AlterCodeApp(viewModel: AlterCodeViewModel) {
         ) {
             when (currentDestination) {
                 AlterCodeDestination.STUDIO -> {
-                    StudioScreen(
-                        studioState = studioState,
-                        quotaStatus = quotaStatus,
-                        onSelectAction = viewModel::selectActionType,
-                        onSelectSourceLanguage = { viewModel.selectSourceLanguage(it) },
-                        onSelectTargetLanguage = viewModel::selectTargetLanguage,
-                        onCodeChange = viewModel::updateSourceCode,
-                        onInsertSymbol = viewModel::insertSymbolIntoCode,
-                        onLoadStarter = viewModel::loadStarterSample,
-                        onClearCode = viewModel::clearStudioCode,
-                        onRunAi = viewModel::runAlterCodeAi,
-                        onApplyOutputToInput = viewModel::applyOutputToEditor,
-                        onSaveToProject = viewModel::saveCurrentOutputToDefaultProject,
-                        onRunInTerminal = viewModel::openInTerminal,
-                        onOpenQuotaSheet = { viewModel.setShowQuotaSheet(true) },
-                        onDismissBanner = viewModel::clearBannerMessages
-                    )
+                    StudioScreen(viewModel = viewModel)
                 }
 
                 AlterCodeDestination.TERMINAL -> {
-                    TerminalScreen(
-                        onNavigateToStudio = { viewModel.navigateTo(AlterCodeDestination.STUDIO) }
-                    )
+                    TerminalScreen(viewModel = viewModel)
                 }
 
                 AlterCodeDestination.WORKSPACE -> {
-                    WorkspaceScreen(
-                        snippets = snippets,
-                        projects = projects,
-                        projectFiles = projectFiles,
-                        encryptionBadge = quotaStatus.encryptionBadge,
-                        onOpenSnippetInStudio = viewModel::loadSnippetIntoStudio,
-                        onToggleSnippetFavorite = viewModel::toggleSnippetFavorite,
-                        onDeleteSnippet = viewModel::deleteSnippet,
-                        onOpenProjectFileInStudio = viewModel::loadProjectFileIntoStudio,
-                        onCreateProject = viewModel::createNewProject,
-                        onAddFileToProject = viewModel::addFileToProject,
-                        onDeleteProject = viewModel::deleteProject,
-                        onDeleteProjectFile = viewModel::deleteProjectFile,
-                        onClearAllSnippets = viewModel::clearAllSnippets,
-                        onClearAllProjects = viewModel::clearAllProjects
-                    )
+                    WorkspaceScreen(viewModel = viewModel)
                 }
 
                 AlterCodeDestination.GITHUB -> {
-                    GitHubScreen(
-                        gitHubState = gitHubState,
-                        studioSourceCode = studioState.sourceCode,
-                        onConnectWithToken = { token -> viewModel.connectGitHubWithToken(token) },
-                        onConnectWithUsername = { username -> viewModel.connectGitHubWithUsername(username) },
-                        onDisconnectProfile = viewModel::disconnectGitHubProfile,
-                        onRefreshProfile = viewModel::refreshGitHubProfile,
-                        onSelectSubTab = viewModel::selectGitHubSubTab,
-                        onUpdateRepoSearchQuery = viewModel::updateGitHubRepoSearchQuery,
-                        onSelectRepoFilter = viewModel::selectGitHubRepoFilter,
-                        onOpenRepositoryInExplorer = viewModel::openRepositoryInExplorer,
-                        onSelectBranch = viewModel::selectGitHubBranch,
-                        onBrowseRepo = { slug, path -> viewModel.browseGitHubRepo(slug, path) },
-                        onSelectItem = viewModel::openGitHubFile,
-                        onCloseFilePreview = viewModel::closeGitHubFilePreview,
-                        onImportFileToStudio = viewModel::importGitHubFileToStudio,
-                        onSaveFileToVault = viewModel::saveGitHubFileToVault,
-                        onPublishStudioGist = viewModel::publishStudioCodeAsGist,
-                        onCommitFileUpdate = viewModel::commitFileUpdateToGitHub,
-                        onDismissMessages = viewModel::clearGitHubMessages
-                    )
+                    GitHubScreen(viewModel = viewModel)
                 }
             }
         }
 
         if (showQuotaSheet) {
+            val safeStatus = quotaStatus ?: com.example.data.QuotaStatus(
+                burstUsed = 0,
+                burstLimit = 20,
+                hourlyUsed = 0,
+                hourlyLimit = 100,
+                dailyUsed = 0,
+                dailyLimit = 500,
+                bonusBurstGranted = 5,
+                deviceFingerprint = "altercode",
+                encryptionBadge = "AES-GCM-256 Vault",
+                isAllowed = true
+            )
             QuotaSecuritySheet(
-                quotaStatus = quotaStatus,
+                quotaStatus = safeStatus,
                 customWorkerUrl = customWorkerUrl,
                 onSaveWorkerUrl = viewModel::updateCustomWorkerUrl,
                 onUnlockBonusQuota = viewModel::unlockRewardedQuotaBoost,
@@ -409,3 +353,4 @@ fun AlterCodeApp(viewModel: AlterCodeViewModel) {
         }
     }
 }
+

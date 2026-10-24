@@ -54,7 +54,20 @@ data class SyntaxPalette(
     val comment: Color,
     val punctuation: Color,
     val plain: Color,
-    val background: Color
+    val background: Color,
+    val plainText: Color = plain,
+    val numberLiteral: Color = number,
+    val functionName: Color = function,
+    val typeName: Color = type,
+    val annotation: Color = function,
+    val stringLiteral: Color = string,
+    val editorBackground: Color = background,
+    val gutterBackground: Color = background,
+    val gutterText: Color = comment,
+    val diffAddedBg: Color = Color(0x3310B981),
+    val diffRemovedBg: Color = Color(0x33EF4444),
+    val diffAddedText: Color = Color(0xFF10B981),
+    val diffRemovedText: Color = Color(0xFFEF4444)
 )
 
 val DarkSyntaxPalette = SyntaxPalette(
@@ -80,3 +93,4 @@ val LightSyntaxPalette = SyntaxPalette(
     plain = Color(0xFF1F2328),
     background = Color(0xFFF6F8FA)
 )
+

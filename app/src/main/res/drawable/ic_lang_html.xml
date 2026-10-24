@@ -1,0 +1,22 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- HTML5 Shield Left (Orange) -->
+    <path
+        android:fillColor="#E44D26"
+        android:pathData="M3,2 L4.8,20.1 L12,22 L12,2 Z" />
+    <!-- HTML5 Shield Right (Light Orange) -->
+    <path
+        android:fillColor="#F16529"
+        android:pathData="M12,2 L12,22 L19.2,20.1 L21,2 Z" />
+    <!-- White Left Glyph '5' -->
+    <path
+        android:fillColor="#EBEBEB"
+        android:pathData="M12,6.5 H6.6 L7,10.5 H12 V8.5 Z M12,13.8 H9.4 L9.2,11.8 H7.1 L7.5,15.8 H12 Z M12,18.8 L9.3,18.1 L9.2,16.8 H7.1 L7.3,19.2 L12,20.5 Z" />
+    <!-- White Right Glyph '5' -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,6.5 H17.4 L17.2,8.5 H12 Z M12,10.5 H17 L16.5,15.8 L12,17 L12,15 L14.7,14.3 L14.9,12.5 H12 Z" />
+</vector>

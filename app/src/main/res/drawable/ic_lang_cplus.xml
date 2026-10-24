@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- C+ Deep Blue Hexagon -->
+    <path
+        android:fillColor="#004482"
+        android:pathData="M12,1.8 L21.5,7.3 L21.5,18.3 L12,23.8 L2.5,18.3 L2.5,7.3 Z" />
+    <!-- Letter 'C' (White) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M10,8 C7.8,8 6.2,9.6 6.2,12 C6.2,14.4 7.8,16 10,16 C11.3,16 12.3,15.4 13,14.6 L11.7,13.3 C11.3,13.9 10.7,14.2 10,14.2 C8.7,14.2 7.8,13.2 7.8,12 C7.8,10.8 8.7,9.8 10,9.8 C10.7,9.8 11.3,10.1 11.7,10.7 L13,9.4 C12.3,8.6 11.3,8 10,8 Z" />
+    <!-- Single '+' (Cyan) -->
+    <path
+        android:fillColor="#00ADD8"
+        android:pathData="M15.5,11 H17 V9.5 H18.5 V11 H20 V12.5 H18.5 V14 H17 V12.5 H15.5 Z" />
+</vector>

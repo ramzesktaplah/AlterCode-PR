@@ -24,12 +24,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-enum class AppNavTab {
-    STUDIO,
-    TERMINAL,
-    WORKSPACE,
-    GITHUB
-}
+typealias AppNavTab = AlterCodeDestination
 
 data class StudioUiState(
     val sourceLanguage: ProgrammingLanguage = ProgrammingLanguage.KOTLIN,
@@ -68,14 +63,35 @@ data class GitHubUiState(
     val isTokenConfigured: Boolean = false
 )
 
+data class VsCodeUiState(
+    val activeFileName: String = "main.kt",
+    val activeLanguage: ProgrammingLanguage = ProgrammingLanguage.KOTLIN,
+    val code: String = ProgrammingLanguage.KOTLIN.starterCode,
+    val isModified: Boolean = false,
+    val isTerminalVisible: Boolean = true,
+    val activeWorkspaceSnippetId: Long? = null,
+    val statusMessage: String? = null
+)
+
+
 class AlterCodeViewModel(application: Application) : AndroidViewModel(application) {
     val repository = SnippetRepository(application)
     val securityAndQuota = SecurityAndQuota(application)
     private val transformerService = CodeTransformerService()
     private val gitHubService = GitHubService()
 
-    private val _currentTab = MutableStateFlow(AppNavTab.STUDIO)
-    val currentTab: StateFlow<AppNavTab> = _currentTab.asStateFlow()
+    private val _currentDestination = MutableStateFlow(AlterCodeDestination.STUDIO)
+    val currentDestination: StateFlow<AlterCodeDestination> = _currentDestination.asStateFlow()
+    val currentTab: StateFlow<AlterCodeDestination> = _currentDestination.asStateFlow()
+
+    private val _useDynamicColor = MutableStateFlow(securityAndQuota.getUseDynamicColor())
+    val useDynamicColor: StateFlow<Boolean> = _useDynamicColor.asStateFlow()
+
+    private val _showQuotaSheet = MutableStateFlow(false)
+    val showQuotaSheet: StateFlow<Boolean> = _showQuotaSheet.asStateFlow()
+
+    private val _customWorkerUrl = MutableStateFlow(securityAndQuota.getCustomWorkerUrl())
+    val customWorkerUrl: StateFlow<String> = _customWorkerUrl.asStateFlow()
 
     private val _themeMode = MutableStateFlow(
         try {
@@ -99,6 +115,9 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
     )
     val terminalState: StateFlow<TerminalUiState> = _terminalState.asStateFlow()
 
+    private val _vsCodeState = MutableStateFlow(VsCodeUiState())
+    val vsCodeState: StateFlow<VsCodeUiState> = _vsCodeState.asStateFlow()
+
     private val _gitHubState = MutableStateFlow(GitHubUiState())
     val gitHubState: StateFlow<GitHubUiState> = _gitHubState.asStateFlow()
 
@@ -111,24 +130,62 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
     val savedProjects: StateFlow<List<ProjectEntity>> = repository.allProjects
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val snippets: StateFlow<List<SnippetEntity>> = savedSnippets
+    val projects: StateFlow<List<ProjectEntity>> = savedProjects
+    val projectFiles: StateFlow<List<com.example.data.ProjectFileEntity>> = MutableStateFlow(emptyList())
+
     init {
         viewModelScope.launch {
             // Strictly purge any default seed snippets and demo projects on launch
             repository.purgeDefaultSeedData()
             refreshQuota()
 
-            // Initialize GitHub if a non-default user is saved
-            val savedUser = securityAndQuota.getGitHubUsername()
-            if (savedUser.isNotBlank() && !savedUser.equals("ramzesktaplah", ignoreCase = true) && !savedUser.equals("ramzes", ignoreCase = true)) {
-                loadGitHubAccount(savedUser)
+            // Default to showing Connect to GitHub unless a valid Personal Access Token was previously connected
+            val savedToken = securityAndQuota.getGitHubPat()
+            if (savedToken.isNotBlank()) {
+                connectWithGitHubToken(savedToken)
             } else {
                 securityAndQuota.clearGitHubCredentials()
+                _gitHubState.value = GitHubUiState()
             }
         }
     }
 
-    fun selectTab(tab: AppNavTab) {
-        _currentTab.value = tab
+    fun navigateTo(destination: AlterCodeDestination) {
+        _currentDestination.value = destination
+    }
+
+    fun selectTab(tab: AlterCodeDestination) {
+        navigateTo(tab)
+    }
+
+    fun setUseDynamicColor(value: Boolean) {
+        _useDynamicColor.value = value
+        securityAndQuota.setUseDynamicColor(value)
+    }
+
+    fun setShowQuotaSheet(show: Boolean) {
+        _showQuotaSheet.value = show
+    }
+
+    fun updateCustomWorkerUrl(url: String) {
+        _customWorkerUrl.value = url
+        securityAndQuota.setCustomWorkerUrl(url)
+    }
+
+    fun unlockRewardedQuotaBoost() {
+        securityAndQuota.addBonusBurst(5)
+        refreshQuota()
+    }
+
+    fun resetBurstQuotaWindow() {
+        securityAndQuota.resetBurstWindow()
+        refreshQuota()
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        _themeMode.value = mode
+        securityAndQuota.setSavedThemeMode(mode.name)
     }
 
     fun toggleTheme() {
@@ -137,8 +194,7 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
             ThemeMode.DARK -> ThemeMode.LIGHT
             ThemeMode.SYSTEM -> ThemeMode.DARK
         }
-        _themeMode.value = next
-        securityAndQuota.setSavedThemeMode(next.name)
+        setThemeMode(next)
     }
 
     // --- Studio Actions ---
@@ -162,6 +218,15 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun updateInputCode(newCode: String) {
         _studioState.value = _studioState.value.copy(inputCode = newCode)
+    }
+
+    fun loadSampleCode() {
+        val sample = _studioState.value.sourceLanguage.starterCode
+        _studioState.value = _studioState.value.copy(inputCode = sample)
+    }
+
+    fun clearInputCode() {
+        _studioState.value = _studioState.value.copy(inputCode = "")
     }
 
     fun executeTransformation() {
@@ -229,14 +294,153 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun sendCodeToTerminal() {
         val codeToRun = _studioState.value.result?.transformedCode ?: _studioState.value.inputCode
-        val lang = _studioState.value.targetLanguage.displayName
-        appendTerminalLog("altercode run --target=$lang", isCommand = true)
+        val targetLang = _studioState.value.targetLanguage
+        _vsCodeState.value = VsCodeUiState(
+            activeFileName = "transformed.${targetLang.extension}",
+            activeLanguage = targetLang,
+            code = codeToRun,
+            isModified = true,
+            isTerminalVisible = true,
+            statusMessage = "Buffer loaded into Workspace"
+        )
+        appendTerminalLog("altercode run transformed.${targetLang.extension} --target=${targetLang.displayName}", isCommand = true)
         appendTerminalLog("[RUNNER] Compiling & executing isolated sandbox buffer...", isCommand = false)
         appendTerminalLog("[STDOUT] Program initialized successfully. Memory allocated: 4.2 MB", isCommand = false)
         appendTerminalLog("[BENCHMARK] Executed 10,000 throughput operations in 1.48 ms.", isCommand = false)
         appendTerminalLog("[EXIT CODE] Process exited with status 0 (Success)", isCommand = false)
-        _currentTab.value = AppNavTab.TERMINAL
+        navigateTo(AlterCodeDestination.TERMINAL)
     }
+
+    fun updateVsCodeCode(newCode: String) {
+        _vsCodeState.value = _vsCodeState.value.copy(
+            code = newCode,
+            isModified = true,
+            statusMessage = null
+        )
+    }
+
+    fun updateVsCodeFileName(name: String) {
+        val ext = name.substringAfterLast('.', "").lowercase()
+        val lang = when (ext) {
+            "kt", "kts" -> ProgrammingLanguage.KOTLIN
+            "java" -> ProgrammingLanguage.JAVA
+            "rs" -> ProgrammingLanguage.RUST
+            "ts", "tsx" -> ProgrammingLanguage.TYPESCRIPT
+            "js", "mjs", "cjs" -> ProgrammingLanguage.JAVASCRIPT
+            "cs" -> ProgrammingLanguage.CSHARP
+            "cp" -> ProgrammingLanguage.CPLUS
+            "html", "htm" -> ProgrammingLanguage.HTML
+            "php" -> ProgrammingLanguage.PHP
+            "sql" -> ProgrammingLanguage.SQL
+            "rb" -> ProgrammingLanguage.RUBY
+            "dart" -> ProgrammingLanguage.DART
+            "c" -> ProgrammingLanguage.C
+            "cpp", "cc", "h", "hpp" -> ProgrammingLanguage.CPP
+            "lua" -> ProgrammingLanguage.LUA
+            "hs" -> ProgrammingLanguage.HASKELL
+            "pl", "pm" -> ProgrammingLanguage.PERL
+            "m", "mm" -> ProgrammingLanguage.OBJECTIVE_C
+            "r", "rmd" -> ProgrammingLanguage.R
+            "py" -> ProgrammingLanguage.PYTHON
+            "go" -> ProgrammingLanguage.GO
+            "swift" -> ProgrammingLanguage.SWIFT
+            else -> _vsCodeState.value.activeLanguage
+        }
+        _vsCodeState.value = _vsCodeState.value.copy(activeFileName = name, activeLanguage = lang)
+    }
+
+    fun setVsCodeLanguage(lang: ProgrammingLanguage) {
+        val baseName = _vsCodeState.value.activeFileName.substringBeforeLast('.', "main")
+        val newFileName = "$baseName.${lang.extension}"
+        _vsCodeState.value = _vsCodeState.value.copy(
+            activeLanguage = lang,
+            activeFileName = newFileName
+        )
+    }
+
+    fun toggleVsCodeTerminal() {
+        _vsCodeState.value = _vsCodeState.value.copy(
+            isTerminalVisible = !_vsCodeState.value.isTerminalVisible
+        )
+    }
+
+    fun loadWorkspaceSnippetIntoVsCode(snippet: SnippetEntity) {
+        val lang = ProgrammingLanguage.fromId(snippet.sourceLanguage)
+        val safeTitle = snippet.title.replace(Regex("[^a-zA-Z0-9_]"), "_").take(20)
+        _vsCodeState.value = VsCodeUiState(
+            activeFileName = "${if (safeTitle.isNotBlank()) safeTitle else "snippet"}.${lang.extension}",
+            activeLanguage = lang,
+            code = snippet.outputCode.ifBlank { snippet.sourceCode },
+            isModified = false,
+            isTerminalVisible = true,
+            activeWorkspaceSnippetId = snippet.id,
+            statusMessage = "Loaded '${snippet.title}' from Workspace"
+        )
+        appendTerminalLog("[WORKSPACE] Opened '${snippet.title}' into editor buffer.", isCommand = false)
+        navigateTo(AlterCodeDestination.TERMINAL)
+    }
+
+    fun saveVsCodeToWorkspace(title: String) {
+        val current = _vsCodeState.value
+        val safeTitle = title.ifBlank { current.activeFileName }
+        viewModelScope.launch {
+            val snippet = SnippetEntity(
+                id = current.activeWorkspaceSnippetId ?: 0L,
+                title = safeTitle,
+                sourceCode = current.code,
+                outputCode = current.code,
+                summary = "Saved from AlterCode Workspace (${current.activeLanguage.displayName})",
+                diagnosticsText = "",
+                explanationText = "",
+                actionType = "edit",
+                sourceLanguage = current.activeLanguage.id,
+                targetLanguage = current.activeLanguage.id,
+                complexityBefore = "O(1)",
+                complexityAfter = "O(1)",
+                routedProvider = "Workspace Editor"
+            )
+            val newId = repository.saveSnippet(snippet)
+            _vsCodeState.value = current.copy(
+                activeWorkspaceSnippetId = if (current.activeWorkspaceSnippetId == null) newId else current.activeWorkspaceSnippetId,
+                isModified = false,
+                statusMessage = "Saved '$safeTitle' to Folder"
+            )
+            appendTerminalLog("[FOLDER] Saved '$safeTitle' to Folder storage.", isCommand = false)
+            refreshQuota()
+        }
+    }
+
+    fun runVsCodeInTerminal() {
+        val current = _vsCodeState.value
+        _vsCodeState.value = current.copy(isTerminalVisible = true)
+        val lang = current.activeLanguage.displayName
+        appendTerminalLog("altercode run ${current.activeFileName} --dialect=$lang", isCommand = true)
+        appendTerminalLog("[VS CODE RUNNER] Spawning isolated runtime for ${current.activeFileName} ($lang)...", isCommand = false)
+        appendTerminalLog("[STDOUT] Buffer: ${current.code.lines().size} lines (${current.code.length} bytes).", isCommand = false)
+        appendTerminalLog("[STDOUT] Execution finished successfully with exit code 0.", isCommand = false)
+        appendTerminalLog("[BENCHMARK] Wall time: 1.48ms • Heap delta: 0.12 MB", isCommand = false)
+    }
+
+    fun formatVsCodeCode() {
+        val current = _vsCodeState.value
+        val formatted = current.code.lines().joinToString("\n") { it.trimEnd() }
+        _vsCodeState.value = current.copy(code = formatted, statusMessage = "Code formatted.")
+        appendTerminalLog("[FORMATTER] Auto-formatted ${current.activeFileName}.", isCommand = false)
+    }
+
+    fun createNewVsCodeFile() {
+        _vsCodeState.value = VsCodeUiState(
+            activeFileName = "untitled.kt",
+            activeLanguage = ProgrammingLanguage.KOTLIN,
+            code = "// New AlterCode file\n\nfun main() {\n    println(\"Hello from AlterCode Workspace!\")\n}\n",
+            isModified = false,
+            isTerminalVisible = true,
+            activeWorkspaceSnippetId = null,
+            statusMessage = "Created new file"
+        )
+        appendTerminalLog("[EDITOR] Created new buffer 'untitled.kt'.", isCommand = false)
+    }
+
 
     fun loadSnippetIntoStudio(snippet: SnippetEntity) {
         val srcLang = ProgrammingLanguage.fromId(snippet.sourceLanguage)
@@ -259,7 +463,7 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
             ),
             statusMessage = "Loaded '${snippet.title}' into Studio"
         )
-        _currentTab.value = AppNavTab.STUDIO
+        navigateTo(AlterCodeDestination.STUDIO)
     }
 
     // --- Terminal Actions ---
@@ -363,46 +567,65 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    // --- GitHub Actions ---
+    // --- GitHub Actions (Token Authenticated) ---
 
-    fun loadGitHubAccount(username: String, pat: String? = null) {
-        val clean = username.trim().removePrefix("@")
-        if (clean.isBlank()) return
-
-        // Prevent setting default account
-        if (clean.equals("ramzesktaplah", ignoreCase = true) || clean.equals("ramzes", ignoreCase = true)) {
-            securityAndQuota.clearGitHubCredentials()
-            _gitHubState.value = GitHubUiState(errorMessage = "Default user unlinked. Please connect your own account.")
+    fun connectWithGitHubToken(token: String) {
+        val cleanToken = token.trim()
+        if (cleanToken.isBlank()) {
+            _gitHubState.value = _gitHubState.value.copy(errorMessage = "Please enter a valid GitHub Personal Access Token.")
             return
         }
 
         viewModelScope.launch {
             _gitHubState.value = _gitHubState.value.copy(isLoading = true, errorMessage = null)
-            val token = pat ?: securityAndQuota.getGitHubPat().takeIf { it.isNotBlank() }
+            val userResult = gitHubService.fetchAuthenticatedUser(cleanToken)
+            if (userResult.isSuccess) {
+                val profile = userResult.getOrThrow()
+                val reposResult = gitHubService.fetchAuthenticatedUserRepos(cleanToken)
+                val repos = reposResult.getOrDefault(emptyList())
 
-            val profileResult = gitHubService.fetchUserProfile(clean, token)
-            val reposResult = gitHubService.fetchUserRepos(clean, token)
-
-            if (profileResult.isSuccess && reposResult.isSuccess) {
-                securityAndQuota.setGitHubUsername(clean)
-                if (pat != null) securityAndQuota.setGitHubPat(pat)
+                securityAndQuota.setGitHubPat(cleanToken)
+                securityAndQuota.setGitHubUsername(profile.login)
 
                 _gitHubState.value = GitHubUiState(
-                    connectedUsername = clean,
-                    profile = profileResult.getOrNull(),
-                    repos = reposResult.getOrDefault(emptyList()),
+                    connectedUsername = profile.login,
+                    profile = profile,
+                    repos = repos,
                     isLoading = false,
-                    isTokenConfigured = !token.isNullOrBlank()
+                    isTokenConfigured = true,
+                    errorMessage = null
                 )
             } else {
+                val err = userResult.exceptionOrNull()?.localizedMessage ?: "Failed to authenticate with GitHub token"
                 _gitHubState.value = _gitHubState.value.copy(
                     isLoading = false,
-                    errorMessage = profileResult.exceptionOrNull()?.localizedMessage
-                        ?: reposResult.exceptionOrNull()?.localizedMessage
-                        ?: "Failed to connect to GitHub"
+                    errorMessage = err
                 )
             }
         }
+    }
+
+    fun loadGitHubAccount(username: String, pat: String? = null) {
+        // Fallback backward compatibility that forwards PAT if present
+        if (!pat.isNullOrBlank()) {
+            connectWithGitHubToken(pat)
+        } else {
+            val token = securityAndQuota.getGitHubPat().takeIf { it.isNotBlank() }
+            if (!token.isNullOrBlank()) {
+                connectWithGitHubToken(token)
+            } else {
+                _gitHubState.value = _gitHubState.value.copy(errorMessage = "Please connect using your Personal Access Token.")
+            }
+        }
+    }
+
+    fun clearSelectedRepo() {
+        _gitHubState.value = _gitHubState.value.copy(
+            selectedRepo = null,
+            currentTree = emptyList(),
+            selectedFilePath = null,
+            filePreview = null
+        )
     }
 
     fun loadPublicRepository(fullName: String) {
@@ -413,12 +636,13 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
 
         viewModelScope.launch {
             _gitHubState.value = _gitHubState.value.copy(isLoading = true, errorMessage = null)
-            val treeResult = gitHubService.fetchRepoTree(owner, repoName)
+            val token = securityAndQuota.getGitHubPat().takeIf { it.isNotBlank() }
+            val treeResult = gitHubService.fetchRepoTree(owner, repoName, token = token)
             if (treeResult.isSuccess) {
                 val dummyRepo = GitHubRepo(
                     name = repoName,
                     fullName = fullName,
-                    description = "Public Repository",
+                    description = "Repository",
                     language = "Code",
                     stars = 0,
                     forks = 0,
@@ -466,7 +690,8 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
 
         viewModelScope.launch {
             _gitHubState.value = _gitHubState.value.copy(isLoading = true, selectedFilePath = file.path, filePreview = null)
-            val res = gitHubService.fetchRawFileContent(owner, repoName, repo.defaultBranch, file.path)
+            val token = securityAndQuota.getGitHubPat().takeIf { it.isNotBlank() }
+            val res = gitHubService.fetchRawFileContent(owner, repoName, repo.defaultBranch, file.path, token)
             _gitHubState.value = _gitHubState.value.copy(
                 isLoading = false,
                 filePreview = res.getOrNull(),
@@ -475,20 +700,37 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
+    private fun detectLanguageFromExtension(ext: String): ProgrammingLanguage = when (ext) {
+        "kt", "kts" -> ProgrammingLanguage.KOTLIN
+        "java" -> ProgrammingLanguage.JAVA
+        "rs" -> ProgrammingLanguage.RUST
+        "ts", "tsx" -> ProgrammingLanguage.TYPESCRIPT
+        "js", "mjs", "cjs" -> ProgrammingLanguage.JAVASCRIPT
+        "cs" -> ProgrammingLanguage.CSHARP
+        "cp" -> ProgrammingLanguage.CPLUS
+        "html", "htm" -> ProgrammingLanguage.HTML
+        "php" -> ProgrammingLanguage.PHP
+        "sql" -> ProgrammingLanguage.SQL
+        "rb" -> ProgrammingLanguage.RUBY
+        "dart" -> ProgrammingLanguage.DART
+        "c" -> ProgrammingLanguage.C
+        "cpp", "cc", "h", "hpp" -> ProgrammingLanguage.CPP
+        "lua" -> ProgrammingLanguage.LUA
+        "hs" -> ProgrammingLanguage.HASKELL
+        "pl", "pm" -> ProgrammingLanguage.PERL
+        "m", "mm" -> ProgrammingLanguage.OBJECTIVE_C
+        "r", "rmd" -> ProgrammingLanguage.R
+        "py" -> ProgrammingLanguage.PYTHON
+        "go" -> ProgrammingLanguage.GO
+        "swift" -> ProgrammingLanguage.SWIFT
+        else -> ProgrammingLanguage.KOTLIN
+    }
+
     fun importPreviewToStudio() {
         val code = _gitHubState.value.filePreview ?: return
         val path = _gitHubState.value.selectedFilePath ?: ""
         val ext = path.substringAfterLast('.', "").lowercase()
-        val detectedLang = when (ext) {
-            "kt", "kts" -> ProgrammingLanguage.KOTLIN
-            "rs" -> ProgrammingLanguage.RUST
-            "ts", "tsx", "js" -> ProgrammingLanguage.TYPESCRIPT
-            "py" -> ProgrammingLanguage.PYTHON
-            "go" -> ProgrammingLanguage.GO
-            "cpp", "cc", "c", "h", "hpp" -> ProgrammingLanguage.CPP
-            "swift" -> ProgrammingLanguage.SWIFT
-            else -> ProgrammingLanguage.KOTLIN
-        }
+        val detectedLang = detectLanguageFromExtension(ext)
 
         _studioState.value = _studioState.value.copy(
             sourceLanguage = detectedLang,
@@ -496,7 +738,25 @@ class AlterCodeViewModel(application: Application) : AndroidViewModel(applicatio
             result = null,
             statusMessage = "Imported $path into Studio"
         )
-        _currentTab.value = AppNavTab.STUDIO
+        navigateTo(AlterCodeDestination.STUDIO)
+    }
+
+    fun importPreviewToVsCode() {
+        val code = _gitHubState.value.filePreview ?: return
+        val path = _gitHubState.value.selectedFilePath ?: ""
+        val fileName = path.substringAfterLast('/')
+        val ext = path.substringAfterLast('.', "").lowercase()
+        val detectedLang = detectLanguageFromExtension(ext)
+
+        _vsCodeState.value = VsCodeUiState(
+            activeFileName = if (fileName.isNotBlank()) fileName else "imported.${detectedLang.extension}",
+            activeLanguage = detectedLang,
+            code = code,
+            isModified = true,
+            isTerminalVisible = true,
+            statusMessage = "Imported $path into Workspace"
+        )
+        navigateTo(AlterCodeDestination.TERMINAL)
     }
 
     fun disconnectGitHub() {

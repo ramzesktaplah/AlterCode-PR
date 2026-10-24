@@ -33,7 +33,10 @@ data class GitHubUserProfile(
     val avatarUrl: String,
     val bio: String,
     val publicRepos: Int,
-    val followers: Int
+    val followers: Int,
+    val following: Int = 0,
+    val totalPrivateRepos: Int = 0,
+    val htmlUrl: String = ""
 )
 
 class GitHubService {
@@ -41,6 +44,91 @@ class GitHubService {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
+
+    suspend fun fetchAuthenticatedUser(token: String): Result<GitHubUserProfile> =
+        withContext(Dispatchers.IO) {
+            try {
+                val cleanToken = token.trim()
+                if (cleanToken.isEmpty()) {
+                    return@withContext Result.failure(IllegalArgumentException("Personal Access Token cannot be empty"))
+                }
+                val request = Request.Builder()
+                    .url("https://api.github.com/user")
+                    .header("Accept", "application/vnd.github.v3+json")
+                    .header("User-Agent", "AlterCode-Android-IDE")
+                    .header("Authorization", "Bearer $cleanToken")
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        val errorBody = response.body?.string().orEmpty()
+                        val msg = try {
+                            JSONObject(errorBody).optString("message", "HTTP ${response.code}")
+                        } catch (e: Exception) {
+                            "HTTP ${response.code}: ${response.message}"
+                        }
+                        return@withContext Result.failure(Exception("GitHub Authentication failed ($msg). Please verify your token permissions."))
+                    }
+                    val bodyString = response.body?.string().orEmpty()
+                    val json = JSONObject(bodyString)
+                    val login = json.optString("login", "")
+                    val name = json.optString("name", login)
+                    val profile = GitHubUserProfile(
+                        login = login,
+                        name = if (name.isNotBlank()) name else login,
+                        avatarUrl = json.optString("avatar_url", ""),
+                        bio = json.optString("bio", ""),
+                        publicRepos = json.optInt("public_repos", 0),
+                        followers = json.optInt("followers", 0),
+                        following = json.optInt("following", 0),
+                        totalPrivateRepos = json.optInt("total_private_repos", 0),
+                        htmlUrl = json.optString("html_url", "https://github.com/$login")
+                    )
+                    Result.success(profile)
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    suspend fun fetchAuthenticatedUserRepos(token: String): Result<List<GitHubRepo>> =
+        withContext(Dispatchers.IO) {
+            try {
+                val cleanToken = token.trim()
+                val request = Request.Builder()
+                    .url("https://api.github.com/user/repos?sort=updated&per_page=100&affiliation=owner,collaborator")
+                    .header("Accept", "application/vnd.github.v3+json")
+                    .header("User-Agent", "AlterCode-Android-IDE")
+                    .header("Authorization", "Bearer $cleanToken")
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(Exception("Failed to fetch user repositories (${response.code})"))
+                    }
+                    val jsonArr = JSONArray(response.body?.string().orEmpty())
+                    val repos = mutableListOf<GitHubRepo>()
+                    for (i in 0 until jsonArr.length()) {
+                        val obj = jsonArr.getJSONObject(i)
+                        repos.add(
+                            GitHubRepo(
+                                name = obj.optString("name", "repo"),
+                                fullName = obj.optString("full_name", ""),
+                                description = obj.optString("description", "No description provided"),
+                                language = obj.optString("language", "Code"),
+                                stars = obj.optInt("stargazers_count", 0),
+                                forks = obj.optInt("forks_count", 0),
+                                isPrivate = obj.optBoolean("private", false),
+                                defaultBranch = obj.optString("default_branch", "main")
+                            )
+                        )
+                    }
+                    Result.success(repos)
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
 
     suspend fun fetchUserProfile(username: String, token: String? = null): Result<GitHubUserProfile> =
         withContext(Dispatchers.IO) {
@@ -165,16 +253,23 @@ class GitHubService {
             }
         }
 
-    suspend fun fetchRawFileContent(owner: String, repo: String, branch: String, filePath: String): Result<String> =
+    suspend fun fetchRawFileContent(owner: String, repo: String, branch: String, filePath: String, token: String? = null): Result<String> =
         withContext(Dispatchers.IO) {
             try {
-                val url = "https://raw.githubusercontent.com/$owner/$repo/$branch/$filePath"
-                val request = Request.Builder()
-                    .url(url)
-                    .header("User-Agent", "AlterCode-Android-IDE")
-                    .build()
+                // If token is provided, prefer api.github.com to allow accessing private repos
+                val requestBuilder = if (!token.isNullOrBlank()) {
+                    Request.Builder()
+                        .url("https://api.github.com/repos/$owner/$repo/contents/$filePath?ref=$branch")
+                        .header("Accept", "application/vnd.github.v3.raw")
+                        .header("Authorization", "Bearer $token")
+                        .header("User-Agent", "AlterCode-Android-IDE")
+                } else {
+                    Request.Builder()
+                        .url("https://raw.githubusercontent.com/$owner/$repo/$branch/$filePath")
+                        .header("User-Agent", "AlterCode-Android-IDE")
+                }
 
-                client.newCall(request).execute().use { response ->
+                client.newCall(requestBuilder.build()).execute().use { response ->
                     if (!response.isSuccessful) {
                         return@withContext Result.failure(Exception("Failed to read file (${response.code})"))
                     }

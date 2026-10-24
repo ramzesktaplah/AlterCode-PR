@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Rust Gear Background -->
+    <path
+        android:fillColor="#CE412B"
+        android:pathData="M12,2 L13.5,3.2 L15.4,2.6 L16.3,4.3 L18.3,4.4 L18.6,6.4 L20.5,7.1 L20.1,9.1 L21.7,10.4 L20.8,12.2 L22,13.8 L20.6,15.2 L21.3,17.1 L19.6,18.1 L19.8,20.1 L17.8,20.6 L17.4,22.5 L15.5,22.3 L14.5,24 L12.8,23.1 L11.2,24 L10.2,22.3 L8.3,22.5 L7.9,20.6 L5.9,20.1 L6.1,18.1 L4.4,17.1 L5.1,15.2 L3.7,13.8 L4.9,12.2 L4,10.4 L5.6,9.1 L5.2,7.1 L7.1,6.4 L7.4,4.4 L9.4,4.3 L10.3,2.6 L12.2,3.2 Z" />
+    <!-- Center Cutout (White Circle) -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M12,5 A7,7 0 1 0 12,19 A7,7 0 1 0 12,5 Z" />
+    <!-- Rust 'R' (Dark Burgundy/Brown) -->
+    <path
+        android:fillColor="#262626"
+        android:pathData="M8.8,7.5 H13.2 C15,7.5 16.2,8.4 16.2,10.1 C16.2,11.3 15.4,12.2 14.3,12.5 L16.5,16.5 H14.3 L12.3,12.7 H10.8 V16.5 H8.8 Z M10.8,9.2 V11.2 H13.1 C13.8,11.2 14.3,10.8 14.3,10.2 C14.3,9.6 13.8,9.2 13.1,9.2 Z" />
+</vector>
